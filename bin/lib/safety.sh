@@ -10,8 +10,9 @@ gfl_resolve_workdir() {
       /lib/live/mount/persistence/*/gopforge-live \
       /run/live/persistence/*/gopforge-live \
       "${GFL_USB_MNT:-}"/gopforge-live \
-      "$HOME/gopforge-live"; do
+      "${HOME:-/root}/gopforge-live"; do
     [ -n "$d" ] || continue
+    case "$d" in *'*'*) continue;; esac      # skip unmatched globs (no persistence)
     if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then echo "$d"; return 0; fi
   done
   mkdir -p /tmp/gopforge-live 2>/dev/null

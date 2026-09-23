@@ -9,6 +9,9 @@ set -u
 
 BUNDLE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# whiptail/newt needs a terminal type; a bare systemd service provides none.
+export TERM="${TERM:-linux}"
+
 # Never hijack an SSH session or a non-tty.
 case "${SSH_CONNECTION:-}${SSH_TTY:-}" in ?*) exit 0 ;; esac
 [ -t 0 ] && [ -t 1 ] || exit 0

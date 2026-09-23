@@ -65,16 +65,19 @@ gfl_build_module() {
   # autostart: a systemd service that runs the wizard on tty1, plus a getty
   # override so it owns the console.
   install -d "$MODROOT/etc/systemd/system" \
+            "$MODROOT/etc/systemd/system/grml-boot.target.wants" \
             "$MODROOT/etc/systemd/system/multi-user.target.wants" \
             "$MODROOT/etc/systemd/system/getty@tty1.service.d"
   cat > "$MODROOT/etc/systemd/system/gopforge.service" <<'UNIT'
 [Unit]
 Description=GopForge-Live wizard (auto-launch on tty1)
-After=multi-user.target
+After=grml-boot.target multi-user.target
 Conflicts=getty@tty1.service
 
 [Service]
 Type=idle
+# systemd services get no TERM/HOME; whiptail needs TERM, and set -u needs HOME.
+Environment=TERM=linux HOME=/root
 ExecStart=/opt/gopforge-live/bin/autostart.sh
 StandardInput=tty
 StandardOutput=tty
@@ -85,8 +88,11 @@ TTYVHangup=yes
 Restart=no
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=grml-boot.target multi-user.target
 UNIT
+  # GRML's default target is grml-boot.target (NOT multi-user.target), so enable
+  # under both — grml-boot.target for GRML, multi-user.target for other live-boots.
+  ln -sf ../gopforge.service "$MODROOT/etc/systemd/system/grml-boot.target.wants/gopforge.service"
   ln -sf ../gopforge.service "$MODROOT/etc/systemd/system/multi-user.target.wants/gopforge.service"
   cat > "$MODROOT/etc/systemd/system/getty@tty1.service.d/override.conf" <<'OVR'
 # Disabled: GopForge-Live owns tty1 (see gopforge.service).
