@@ -167,8 +167,23 @@ if [ "$GROW_MB" -gt 0 ]; then
   [ -n "$pstart" ] || die "could not read partition 1 start for resize"
   sgdisk -d 1 -n "1:${pstart}:0" -t 1:0700 "$OUT" >/dev/null 2>&1   # extend part 1 to the end
   gl="$(losetup -fP --show "$OUT")"; sleep 1
+  command -v partprobe >/dev/null 2>&1 && partprobe "$gl" 2>/dev/null || true
   gp="${gl}p1"; [ -b "$gp" ] || gp="$gl"
-  fatresize -s max "$gp" >/dev/null 2>&1 || { losetup -d "$gl" 2>/dev/null; die "fatresize failed on $gp"; }
+  # target size = partition size minus a small slack, in bytes
+  psz="$(sgdisk -i 1 "$OUT" 2>/dev/null | awk -F'[ :]+' '/Partition size/{print $3}')"
+  bytes=$(( (${psz:-0} - 2048) * 512 ))
+  ferr=""
+  if   fatresize -s max      "$gp" 2>/tmp/gfl_fatresize.err; then :
+  elif [ "$bytes" -gt 0 ] && fatresize -s "$bytes" "$gp" 2>>/tmp/gfl_fatresize.err; then :
+  else
+    ferr="$(cat /tmp/gfl_fatresize.err 2>/dev/null)"
+    losetup -d "$gl" 2>/dev/null
+    die "fatresize failed on $gp (target ${bytes} bytes).
+     fatresize said:
+$ferr
+     Workarounds: pass --grow-mb 0 and use the simpler build-image.sh /
+     install-to-usb path instead, or resize the FAT manually."
+  fi
   losetup -d "$gl" 2>/dev/null
   ok "FAT partition grown"
 fi
