@@ -56,6 +56,14 @@ ROM library onto its FAT partition. See [flash-usb/README.md](flash-usb/README.m
 (Already have a GRML-FLASH USB? Skip the writers and use
 `./tools/install-to-usb.sh /mnt/usb`.)
 
+**Auto-launch on boot (Linux, one shot):** `tools/build-image.sh` writes the image,
+installs the bundle, and wires an autostart hook so `gopwizard.sh` runs on boot with
+no shell command:
+```bash
+sudo ./tools/build-image.sh --device /dev/sdX --image <grml-flash.img>
+```
+(The autostart wiring is best-effort/untested; the write + install core is reliable.)
+
 ## Boot the target machine
 
 Power on the Mac holding **⌥ Option**, pick the USB, then `sudo bash bin/gopwizard.sh`.
@@ -77,9 +85,10 @@ See [docs/INSTALL.md](docs/INSTALL.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md).
 - Every hardware write is preceded by a **verified backup** (size + sha256).
 - GPU ROMs are recommended from the **iMac boot-screen matrix**, which detects your
   iMac model + GPU and marks each candidate **✓ suitable / ⚠ caution / ✗ won't work**
-  (e.g. EG2 white-screens on iMac10,1 A1312; Polaris has no LVDS; iMac9,1 needs
-  EnableGop91; memory-vendor ROMs must match your VRAM). It warns on ✗ but doesn't
-  hard-block, since edge cases exist.
+  (Polaris has no LVDS; iMac9,1 needs EnableGop91; memory-vendor ROMs must match your
+  VRAM). A ✗ from a method the model *forbids* (e.g. **EG2 white-screens on iMac10,1
+  A1312**) is **hard-blocked**. Where `dmidecode` is ambiguous (iMac10,1 A1311 vs
+  A1312) the wizard asks which model you have first.
 - BootROM writes require a **double confirmation**; GopForge itself refuses to
   patch anything that isn't a MacPro4,1/5,1 image.
 - Read [docs/RECOVERY.md](docs/RECOVERY.md) and keep a CH341A handy for the

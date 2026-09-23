@@ -16,11 +16,33 @@ resolve_rom() { # relfile
   return 1
 }
 
-# Model profile from GFL_MAC_MODEL -> sets GFL_PANEL/GFL_DRIVER/GFL_FORBID/GFL_MODEL_NOTE.
+# True when dmidecode's model is too coarse to pick a panel (e.g. iMac10,1 covers
+# both the A1311 21.5" LVDS and the A1312 27" eDP, which need different ROMs).
+model_ambiguous() {
+  lib_ok || return 1
+  [ "$(jq -r --arg m "${GFL_MAC_MODEL:-}" '.model_rules[$m].ambiguous // false' "$GFL_MATRIX" 2>/dev/null)" = true ]
+}
+
+# Concrete sub-variants of the detected model, as tag<TAB>label pairs
+# (e.g. iMac10,1-A1311 / iMac10,1-A1312).
+model_variant_items() {
+  lib_ok || return 1
+  jq -r --arg m "${GFL_MAC_MODEL:-}" '
+    .model_rules | to_entries[] | select(.key | startswith($m+"-"))
+    | [.key, (.value.note // .key)] | @tsv' "$GFL_MATRIX" 2>/dev/null
+}
+
+# Method of a specific rom file within a card object.
+rom_method_of() { # cardjson file
+  jq -r --arg f "$2" '.roms[] | select(.file==$f) | .method' <<<"$1" 2>/dev/null | head -n1
+}
+
+# Model profile. Uses GFL_MODEL_KEY when set (the resolved sub-variant), else the
+# raw dmidecode model. Sets GFL_PANEL/GFL_DRIVER/GFL_FORBID/GFL_MODEL_NOTE.
 model_profile() {
   GFL_PANEL="unknown"; GFL_DRIVER="any"; GFL_FORBID=""; GFL_MODEL_NOTE=""
   lib_ok || return 0
-  local m="${GFL_MAC_MODEL:-}"
+  local m="${GFL_MODEL_KEY:-${GFL_MAC_MODEL:-}}"
   [ -n "$m" ] || return 0
   local row
   row="$(jq -c --arg m "$m" '.model_rules[$m] // empty' "$GFL_MATRIX" 2>/dev/null)"

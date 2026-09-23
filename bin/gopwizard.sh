@@ -112,6 +112,17 @@ Detected: ${GFL_MACHINE_LABEL:-unknown}."; return 0; fi
   local name="${GFL_GPU_NAME[$i]}"
 
   detect_mac_model
+  # Resolve models dmidecode can't disambiguate (e.g. iMac10,1 A1311 vs A1312).
+  GFL_MODEL_KEY="$GFL_MAC_MODEL"
+  if model_ambiguous; then
+    local vitems=() vk vlbl
+    while IFS=$'\t' read -r vk vlbl; do [ -n "$vk" ] && vitems+=("$vk" "$vlbl"); done < <(model_variant_items)
+    if [ "${#vitems[@]}" -gt 0 ]; then
+      local chosen; chosen="$(ui_menu "Which $GFL_MAC_MODEL exactly?" \
+"dmidecode reports only \"$GFL_MAC_MODEL\", which covers different panels that need
+different ROMs. Pick your exact model:" "${vitems[@]}")" && GFL_MODEL_KEY="$chosen"
+    fi
+  fi
   model_profile
 
   if ! lib_ok; then
@@ -144,14 +155,15 @@ pick manually?" defaultyes && browse_library_flash "$ven" "$name"
   local cname; cname="$(jq -r '.name' <<<"$card")"
   local cnotes; cnotes="$(jq -r '.notes // ""' <<<"$card")"
   ui_msg "Matched: $cname" \
-"Model : ${GFL_MAC_MODEL:-unknown}  (panel: $GFL_PANEL, driver: $GFL_DRIVER)
+"Model : ${GFL_MODEL_KEY:-$GFL_MAC_MODEL}  (panel: $GFL_PANEL, driver: $GFL_DRIVER)
 GPU   : $name ($ven:$dev)
 ${GFL_MODEL_NOTE:+Model note: $GFL_MODEL_NOTE
 }${cnotes:+Card note : $cnotes}
 
 Next screen ranks the ROMs for this card:
   ✓ suitable   ⚠ caution   ✗ won't work on this model
-Read the markers — GopForge-Live will not stop you flashing a ✗."
+✗ ROMs (a method known-broken on this model, e.g. EG2 on iMac10,1 A1312)
+are BLOCKED unless the Expert override is on."
 
   # Build the ranked candidate menu.
   local items=(); local f l
@@ -160,6 +172,22 @@ Read the markers — GopForge-Live will not stop you flashing a ✗."
   local pick; pick="$(ui_menu "ROMs for $cname" "Choose a ROM to flash." "${items[@]}")" || return 0
 
   if [ "$pick" = "__BROWSE__" ]; then browse_library_flash "$ven" "$name"; return 0; fi
+
+  # Hard-block a ROM whose method the model_rule forbids (e.g. EG2 white-screens
+  # on iMac10,1 A1312). Expert override bypasses.
+  local pmethod; pmethod="$(rom_method_of "$card" "$pick")"
+  if [ -n "$GFL_FORBID" ] && [ -n "$pmethod" ] && [ "${GFL_EXPERT:-0}" != 1 ]; then
+    case ",$GFL_FORBID," in *",$pmethod,"*)
+      ui_msg "Blocked for this model" \
+"${pmethod^^} is known-broken on ${GFL_MODEL_KEY:-$GFL_MAC_MODEL}
+(e.g. EG2 gives a white screen on the iMac10,1 A1312 27\").
+
+Pick a GOP or EG ROM instead. (This block can only be bypassed via the
+Expert override on the main menu.)"
+      return 0 ;;
+    esac
+  fi
+
   local abs; abs="$(resolve_rom "$pick")" || { ui_msg "Not found" "$pick — run tools/fetch-roms.sh."; return 0; }
   do_gpu_flash "$ven" "$abs" "$name"
 }

@@ -49,8 +49,15 @@ failure.
 
 ## Safety rules the wizard enforces
 
+- **Machine-gated**: only the branch that applies to the detected machine is offered
+  (Mac Pro 4,1/5,1 → BootROM; supported iMac → GPU vBIOS; anything else → nothing,
+  unless the Expert override is knowingly enabled).
 - Every write is preceded by a **verified backup** (size + sha256).
-- GPU auto-flash is limited to catalog entries marked `verified: true`.
+- Each candidate ROM is marked **✓ / ⚠ / ✗** for the detected model. A ✗ caused by a
+  method the model forbids (e.g. **EG2 on iMac10,1 A1312** = white screen) is
+  **hard-blocked** — you can't select it unless Expert override is on.
+- For models `dmidecode` can't tell apart (iMac10,1 A1311 vs A1312), the wizard
+  **asks which one you have** before applying the rules.
 - The BootROM write requires a **double confirmation**.
 - GopForge refuses to inject into anything that isn't a MacPro4,1/5,1 image
   (size + insertion-point GUID), so a wrong dump can't be patched.
