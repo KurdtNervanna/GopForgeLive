@@ -28,7 +28,7 @@
   "cards": [
     {
       "name": "AMD FirePro M4000 (Venus, GCN1)", "family": "GCN1",
-      "match": {"device": ["6821"], "name_globs": ["M4000", "Venus"]},
+      "match": {"device": ["682d"], "name_globs": ["M4000"]},
       "lvds": true,
       "roms": [
         {"file": "GOP/M4000-GOP.rom", "method": "gop"},
@@ -42,7 +42,7 @@
     },
     {
       "name": "AMD FirePro M5100 (GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["M5100"]},
+      "match": {"device": ["6821"], "name_globs": ["M5100"]},
       "lvds": true, "memory_variants": true,
       "roms": [
         {"file": "GOP/M5100-Elpida-GOP.rom", "method": "gop", "mem": "Elpida"},
@@ -62,7 +62,7 @@
     },
     {
       "name": "AMD FirePro M6000 (GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["M6000"]},
+      "match": {"device": ["6825"], "name_globs": ["M6000"]},
       "lvds": true,
       "roms": [
         {"file": "GOP/M6000-GOP.rom", "method": "gop"},
@@ -75,7 +75,7 @@
     },
     {
       "name": "AMD FirePro M6100 (Saturn, GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["M6100"]},
+      "match": {"device": ["6640"], "name_globs": ["M6100"]},
       "lvds": true, "memory_variants": true, "hot": true,
       "roms": [
         {"file": "EG/M6100-General-EnableGop.rom", "method": "eg"},
@@ -91,7 +91,7 @@
     },
     {
       "name": "AMD FirePro W5170M (Venus, GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["W5170"]},
+      "match": {"device": ["6820"], "name_globs": ["W5170"]},
       "lvds": true,
       "roms": [
         {"file": "GOP/W5170M-GOP.rom", "method": "gop"},
@@ -105,7 +105,7 @@
     },
     {
       "name": "AMD FirePro W6150M (Saturn, GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["W6150"]},
+      "match": {"device": ["6646"], "name_globs": ["W6150"]},
       "hot": true,
       "roms": [
         {"file": "GOP/W6150M_GOP.rom", "method": "gop"},
@@ -115,7 +115,7 @@
     },
     {
       "name": "AMD FirePro W6170M (Saturn, GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["W6170"]},
+      "match": {"device": ["6646"], "name_globs": ["W6170"]},
       "hot": true,
       "roms": [
         {"file": "GOP/W6170M-GOP.rom", "method": "gop"},
@@ -129,7 +129,7 @@
     },
     {
       "name": "AMD FirePro W7170M (GCN1)", "family": "GCN1",
-      "match": {"name_globs": ["W7170"]},
+      "match": {"device": ["6921"], "name_globs": ["W7170"]},
       "roms": [
         {"file": "EG2/W7170M-EG2_adj.rom", "method": "eg2"},
         {"file": "EG/W7170M-EnableGop.rom", "method": "eg"}
@@ -137,7 +137,7 @@
     },
     {
       "name": "AMD FirePro S7100X (Tonga, GCN3)", "family": "GCN3",
-      "match": {"name_globs": ["S7100"]},
+      "match": {"device": ["6930", "6939"], "name_globs": ["S7100"]},
       "roms": [
         {"file": "GOP/S7100X-6930-LVTMA-GOP.rom", "method": "gop"},
         {"file": "EG2/S7100X-6930-LVTMA-EG2_adj.rom", "method": "eg2"},
@@ -156,7 +156,7 @@
     },
     {
       "name": "AMD Radeon Pro WX4130 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
-      "match": {"device": ["67e1", "67e0"], "name_globs": ["WX4130"]},
+      "match": {"device": ["67e8"], "name_globs": ["WX4130"]},
       "lvds": false,
       "roms": [
         {"file": "GOP/WX4130_GOP.rom", "method": "gop"},
@@ -169,7 +169,7 @@
     },
     {
       "name": "AMD Radeon Pro WX4150 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
-      "match": {"device": ["67e0"], "name_globs": ["WX4150"]},
+      "match": {"device": ["67e8"], "name_globs": ["WX4150"]},
       "lvds": false, "memory_variants": true,
       "roms": [
         {"file": "GOP/WX4150_GOP.rom", "method": "gop"},
@@ -184,7 +184,7 @@
     },
     {
       "name": "AMD Radeon Pro WX4170 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
-      "match": {"device": ["67e0"], "name_globs": ["WX4170"]},
+      "match": {"device": ["67e8"], "name_globs": ["WX4170"]},
       "lvds": false,
       "roms": [
         {"file": "GOP/WX4170_GOP.rom", "method": "gop"},
@@ -198,7 +198,7 @@
     },
     {
       "name": "AMD Radeon Pro WX7100 (Ellesmere, Polaris 10)", "family": "GCN4-Polaris",
-      "match": {"device": ["67c4", "67c7"], "name_globs": ["WX7100"]},
+      "match": {"device": ["67c0"], "name_globs": ["WX7100"]},
       "lvds": false,
       "roms": [
         {"file": "GOP/WX7100-GOP.rom", "method": "gop"},
@@ -235,7 +235,7 @@
     },
     {
       "name": "AMD Radeon Pro RX5500XT (Navi 14)", "family": "RDNA1",
-      "match": {"device": ["7340", "7341", "7347"], "name_globs": ["RX5500", "5500XT"]},
+      "match": {"device": ["7340"], "name_globs": ["RX5500", "5500XT"]},
       "lvds": false,
       "roms": [
         {"file": "EG2/RX5500XT-NV14-EG2.rom", "method": "eg2"},
@@ -246,7 +246,7 @@
     },
     {
       "name": "AMD Radeon Pro M370 (Strato/Cape Verde)", "family": "GCN1",
-      "match": {"name_globs": ["M370"]},
+      "match": {"device": ["6820"], "name_globs": ["M370"]},
       "roms": [
         {"file": "EG2/M370-2820-EG2_.rom", "method": "eg2"}
       ]
@@ -261,7 +261,7 @@
     },
     {
       "name": "AMD Radeon HD 7950 Mac (Tahiti, GCN1)", "family": "GCN1",
-      "match": {"device": ["679a", "6798"], "name_globs": ["7950"]},
+      "match": {"device": ["679a"], "name_globs": ["7950"]},
       "roms": [
         {"file": "UGA/HD7950_MAC.rom", "method": "uga"}
       ],
@@ -269,7 +269,7 @@
     },
     {
       "name": "AMD Radeon R9 M290X (Tonga/Amethyst) — UNTESTED", "family": "GCN3",
-      "match": {"device": ["6920", "6921"], "name_globs": ["M290X"]},
+      "match": {"device": ["6801"], "name_globs": ["M290X"]},
       "roms": [
         {"file": "UGA/M290X_UNTESTED.rom", "method": "uga"}
       ],

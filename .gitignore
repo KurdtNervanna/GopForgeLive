@@ -23,3 +23,8 @@ Backups/
 /flash-usb/*.iso
 /flash-usb/*.zip
 /flash-usb/*.img.*
+
+# Fetched EnableGop tooling (gopforge --fetch lands here; third-party, do not commit)
+/tools/DXEInject
+/tools/EnableGop*.ffs
+/tools/.dxeinject.sha256
