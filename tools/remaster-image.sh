@@ -161,6 +161,8 @@ cleanup() {
   set +e
   [ -n "${LIVE_MNT:-}" ] && { umount "$LIVE_MNT" 2>/dev/null; rmdir "$LIVE_MNT" 2>/dev/null; }
   [ -n "${LOOP:-}" ] && losetup -d "$LOOP" 2>/dev/null
+  # detach any other loop devices backing OUT (e.g. from the offset-mount fallback)
+  [ -n "${OUT:-}" ] && losetup -j "$OUT" 2>/dev/null | cut -d: -f1 | xargs -r -n1 losetup -d 2>/dev/null
   [ -n "${MODROOT:-}" ] && rm -rf "$MODROOT" 2>/dev/null
 }
 trap cleanup EXIT
@@ -170,18 +172,32 @@ LOOP="$(losetup -fP --show "$OUT")" || die "losetup failed"
 ok "loop: $LOOP"
 sleep 1
 
-# Find the partition that holds the live/ squashfs.
-LIVE_MNT="$(mktemp -d)"; LIVEDIR=""; PART=""
+# Locate the FAT partition that holds the base squashfs and set LIVEDIR to the
+# directory that CONTAINS it (GRML nests it, e.g. live/grml64-full/*.squashfs —
+# not directly under live/). Try partition device nodes first, then fall back to
+# an offset mount (WSL sometimes does not create loopNpN nodes).
+LIVE_MNT="$(mktemp -d)"; LIVEDIR=""; PART=""; SQ=""
+_scan_mounted() { SQ="$(find "$LIVE_MNT" -maxdepth 4 -type f -name '*.squashfs' 2>/dev/null | head -n1)"; [ -n "$SQ" ]; }
+
 for p in "${LOOP}"p*; do
   [ -b "$p" ] || continue
   if mount -o rw "$p" "$LIVE_MNT" 2>/dev/null || mount "$p" "$LIVE_MNT" 2>/dev/null; then
-    d="$(find "$LIVE_MNT" -maxdepth 3 -type d -name live 2>/dev/null | head -n1)"
-    if [ -n "$d" ] && ls "$d"/*.squashfs >/dev/null 2>&1; then LIVEDIR="$d"; PART="$p"; break; fi
+    if _scan_mounted; then LIVEDIR="$(dirname "$SQ")"; PART="$p"; break; fi
     umount "$LIVE_MNT" 2>/dev/null
   fi
 done
-[ -n "$LIVEDIR" ] || die "could not find a live/ dir with a squashfs on any partition of the image"
-ok "live dir: ${LIVEDIR#$LIVE_MNT}  (partition $PART)"
+
+if [ -z "$LIVEDIR" ]; then
+  # offset-mount fallback: first partition start from the GPT
+  pstart="$(sgdisk -p "$OUT" 2>/dev/null | awk '/^ *[0-9]+ +[0-9]+/{print $2; exit}')"
+  poff=$(( ${pstart:-2048} * 512 ))
+  if mount -o rw,offset="$poff" "$OUT" "$LIVE_MNT" 2>/dev/null || mount -o offset="$poff" "$OUT" "$LIVE_MNT" 2>/dev/null; then
+    if _scan_mounted; then LIVEDIR="$(dirname "$SQ")"; PART="offset $poff"; fi
+  fi
+fi
+
+[ -n "$LIVEDIR" ] || die "could not find a *.squashfs on any partition of the image"
+ok "live dir: ${LIVEDIR#$LIVE_MNT}  ($PART, base $(basename "$SQ"))"
 
 # --- build + install the additive module ------------------------------------
 gfl_build_module

@@ -28,3 +28,4 @@ Backups/
 /tools/DXEInject
 /tools/EnableGop*.ffs
 /tools/.dxeinject.sha256
+/flash-usb/*.dmg
