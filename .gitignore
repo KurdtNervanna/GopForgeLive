@@ -1,0 +1,15 @@
+# Vendored upstream tools — populated by tools/fetch-vendor.sh, not committed.
+/vendor/gopforge/
+/vendor/*.ffs
+/vendor/DXEInject*
+
+# GPU vBIOS ROM drop — licensing varies; keep binaries out of the repo.
+/roms/*
+!/roms/.gitkeep
+
+# Runtime / scratch
+*.log
+*.rom
+*.bin
+*-enablegop.rom
+Backups/

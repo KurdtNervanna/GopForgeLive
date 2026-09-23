@@ -1,0 +1,5 @@
+# Keep everything LF in the repo; the .sh tools must stay LF or their shebang
+# and bash parsing break on the Linux live environment they run in.
+* text=auto eol=lf
+*.sh text eol=lf
+*.json text eol=lf
