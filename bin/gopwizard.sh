@@ -30,7 +30,7 @@ GFL_ROMS="${GFL_ROMS:-$GFL_ROOT/roms}"
 GFL_WORKDIR="$(gfl_resolve_workdir)"
 GFL_LOG="$GFL_WORKDIR/gopforge-live.log"
 . "$GFL_LIB/detect.sh"
-. "$GFL_LIB/catalog.sh"
+. "$GFL_LIB/library.sh"
 . "$GFL_LIB/vbios.sh"
 . "$GFL_LIB/bootrom.sh"
 
@@ -64,76 +64,101 @@ choose_gpu_index() { # -> echoes chosen array index, or non-zero on cancel
   ui_menu "Select GPU" "Which adapter do you want to work on?" "${args[@]}"
 }
 
+# Backup the selected adapter's current vBIOS, confirm, then flash $rom.
+do_gpu_flash() { # vendorid rom_abs gpu_name
+  local ven="$1" rom="$2" name="$3"
+  case "$ven" in
+    1002)
+      ui_textbox "AMD adapters (amdvbflash -i)" <(amd_list)
+      local aidx; aidx="$(ui_menu "AMD adapter index" "Pick the amdvbflash adapter index for this card." 0 "index 0" 1 "index 1" 2 "index 2")" || return 0
+      local backup; backup="$(amd_backup "$aidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
+      confirm_write "AMD vBIOS" "$name (adapter $aidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
+      if amd_flash "$aidx" "$rom" no; then
+        ui_msg "Done" "AMD flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup"
+      else
+        ui_msg "Flash failed" "See $GFL_LOG. Restore with:\n  amdvbflash -f -p $aidx $backup"
+      fi ;;
+    10de)
+      ui_textbox "NVIDIA adapters (nvflash --list)" <(nv_list)
+      local nidx; nidx="$(ui_menu "NVIDIA index" "Pick the nvflash index for this card." 0 "index 0" 1 "index 1")" || return 0
+      local backup; backup="$(nv_backup "$nidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
+      confirm_write "NVIDIA vBIOS" "$name (index $nidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
+      if nv_flash "$nidx" "$rom"; then
+        ui_msg "Done" "NVIDIA flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup"
+      else
+        ui_msg "Flash failed" "See $GFL_LOG. Backup: $backup"
+      fi ;;
+    *) ui_msg "Unsupported" "No flasher for vendor $ven." ;;
+  esac
+}
+
+# Browse the whole fetched ROM library and flash a chosen file (expert path).
+browse_library_flash() { # vendorid gpu_name
+  local ven="$1" name="$2"
+  local items=(); local f l
+  while IFS=$'\t' read -r f l; do items+=("$f" "$l"); done < <(library_all_items)
+  [ "${#items[@]}" -gt 0 ] || { ui_msg "Empty library" "No ROMs under $GFL_ROMS. Run tools/fetch-roms.sh first."; return 0; }
+  local pick; pick="$(ui_menu "ROM library" "Pick any ROM to flash (expert — verify it matches your card!)." "${items[@]}")" || return 0
+  local abs; abs="$(resolve_rom "$pick")" || { ui_msg "Not found" "$pick"; return 0; }
+  do_gpu_flash "$ven" "$abs" "$name"
+}
+
 flow_gpu_vbios() {
   local i; i="$(choose_gpu_index)" || return 0
   local ven="${GFL_GPU_VENDOR[$i]}" dev="${GFL_GPU_DEVICE[$i]}" sub="${GFL_GPU_SUBSYS[$i]}"
   local name="${GFL_GPU_NAME[$i]}"
 
-  # Catalog recommendation
-  local entry rom_rel rom_abs verified notes
-  entry="$(catalog_match "$ven" "$dev" "$sub" || true)"
-  if [ -n "$entry" ]; then
-    rom_rel="$(catalog_field "$entry" rom)"
-    verified="$(catalog_field "$entry" verified)"
-    notes="$(catalog_field "$entry" notes)"
-    rom_abs="$(catalog_rom_path "$rom_rel" || true)"
-    ui_msg "Catalog match" \
-"Card   : $name
-ID     : $ven:$dev  subsys $sub
-ROM    : ${rom_rel:-<none>}  ${rom_abs:+(found)}
-Verified: ${verified:-false}
-Notes  : ${notes:-none}"
-  else
-    ui_msg "No catalog match" \
-"Card: $name ($ven:$dev subsys $sub)
+  detect_mac_model
+  model_profile
 
-No curated GOP vBIOS entry for this card. You can still flash a ROM
-you place under $GFL_WORKDIR/video manually, but GopForge-Live will
-not auto-recommend one."
-    verified="false"
+  if ! lib_ok; then
+    ui_msg "Matrix unavailable" "jq or the ROM matrix is missing; opening the raw library browser."
+    browse_library_flash "$ven" "$name"; return 0
   fi
 
-  # Only a verified catalog entry with a present ROM is offered for auto-flash.
-  local rom=""
-  if [ "${verified:-false}" = "true" ] && [ -n "${rom_abs:-}" ]; then
-    ui_yesno "Use recommended ROM?" "Flash the verified GOP ROM:\n  $rom_rel\nonto $name?" \
-      && rom="$rom_abs"
-  fi
-  if [ -z "$rom" ]; then
-    warn "no verified auto-ROM selected; drop a .rom in $GFL_WORKDIR/video and re-run, or use expert CLI."
-    ui_msg "Manual flash required" \
-"For safety, auto-flash is limited to catalog entries marked verified.
-Place your ROM under:
-  $GFL_WORKDIR/video/
-then flash from a shell with amdvbflash/nvflash (see docs/WORKFLOW.md)."
+  local cards=(); local cj
+  while IFS= read -r cj; do [ -n "$cj" ] && cards+=("$cj"); done < <(matrix_find_cards "$dev" "$name")
+  local card=""
+  if [ "${#cards[@]}" -eq 0 ]; then
+    ui_yesno "No matrix match" \
+"Model : ${GFL_MAC_MODEL:-unknown} (panel: $GFL_PANEL)
+GPU   : $name ($ven:$dev)
+
+No matrix entry matched this card. Browse the full ROM library and
+pick manually?" defaultyes && browse_library_flash "$ven" "$name"
     return 0
+  elif [ "${#cards[@]}" -eq 1 ]; then
+    card="${cards[0]}"
+  else
+    # Ambiguous (e.g. shared device id 67df = RX470/RX480/570/580) — let the user pick.
+    local args=() k
+    for k in "${!cards[@]}"; do args+=("$k" "$(jq -r '.name' <<<"${cards[$k]}")"); done
+    local sel; sel="$(ui_menu "Which card exactly?" \
+"$ven:$dev matches several boards (shared device id). Pick the one you have." "${args[@]}")" || return 0
+    card="${cards[$sel]}"
   fi
 
-  case "$ven" in
-    1002)
-      ui_textbox "AMD adapters" <(amd_list)
-      local aidx; aidx="$(ui_menu "AMD adapter index" "Enter the amdvbflash adapter index for this card." 0 "index 0" 1 "index 1" 2 "index 2")" || return 0
-      local backup; backup="$(amd_backup "$aidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
-      confirm_write "AMD vBIOS" "$name (adapter $aidx)" "backup: $backup" no || return 0
-      if amd_flash "$aidx" "$rom" no; then
-        ui_msg "Done" "AMD flash reported success. Power off fully before rebooting."
-      else
-        ui_msg "Flash failed" "See $GFL_LOG. Your backup is at:\n$backup"
-      fi
-      ;;
-    10de)
-      ui_textbox "NVIDIA adapters" <(nv_list)
-      local nidx; nidx="$(ui_menu "NVIDIA index" "Enter the nvflash index for this card." 0 "index 0" 1 "index 1")" || return 0
-      local backup; backup="$(nv_backup "$nidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
-      confirm_write "NVIDIA vBIOS" "$name (index $nidx)" "backup: $backup" no || return 0
-      if nv_flash "$nidx" "$rom"; then
-        ui_msg "Done" "NVIDIA flash reported success. Power off fully before rebooting."
-      else
-        ui_msg "Flash failed" "See $GFL_LOG. Your backup is at:\n$backup"
-      fi
-      ;;
-    *) ui_msg "Unsupported" "No flasher for vendor $ven." ;;
-  esac
+  local cname; cname="$(jq -r '.name' <<<"$card")"
+  local cnotes; cnotes="$(jq -r '.notes // ""' <<<"$card")"
+  ui_msg "Matched: $cname" \
+"Model : ${GFL_MAC_MODEL:-unknown}  (panel: $GFL_PANEL, driver: $GFL_DRIVER)
+GPU   : $name ($ven:$dev)
+${GFL_MODEL_NOTE:+Model note: $GFL_MODEL_NOTE
+}${cnotes:+Card note : $cnotes}
+
+Next screen ranks the ROMs for this card:
+  ✓ suitable   ⚠ caution   ✗ won't work on this model
+Read the markers — GopForge-Live will not stop you flashing a ✗."
+
+  # Build the ranked candidate menu.
+  local items=(); local f l
+  while IFS=$'\t' read -r f l; do items+=("$f" "$l"); done < <(card_menu_items "$card")
+  items+=("__BROWSE__" "» Browse the entire ROM library instead")
+  local pick; pick="$(ui_menu "ROMs for $cname" "Choose a ROM to flash." "${items[@]}")" || return 0
+
+  if [ "$pick" = "__BROWSE__" ]; then browse_library_flash "$ven" "$name"; return 0; fi
+  local abs; abs="$(resolve_rom "$pick")" || { ui_msg "Not found" "$pick — run tools/fetch-roms.sh."; return 0; }
+  do_gpu_flash "$ven" "$abs" "$name"
 }
 
 # ============================================================================

@@ -1,0 +1,279 @@
+{
+  "matrix_version": "0.2.0",
+  "updated": "2026-09-23",
+  "source": "https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN (GPL-3.0)",
+  "note": "ROM file paths are relative to the roms/ library populated by tools/fetch-roms.sh (packed .rom.zip entries are unzipped to .rom). Method ranking for recommendation: gop > eg2 > eg > uga, subject to model_rules constraints. Auto-flash is never blind: the wizard shows candidates and requires a backup + explicit confirm.",
+
+  "methods": {
+    "gop":  "Native UEFI GOP boot screen (best where supported).",
+    "eg2":  "EnableGop2 injected vBIOS. Does NOT work on iMac10,1 A1312 (white screen).",
+    "eg":   "EnableGop injected vBIOS. Works on ALL supported iMac models.",
+    "eg91": "EnableGop91 variant required by iMac9,1 (LVDS). Named *EnableGop91* / *LVDS*.",
+    "uga":  "Legacy UGA boot screen (oldest method).",
+    "lvds": "LVDS-panel variant (iMac9,1 and iMac10,1 A1311). Polaris/GCN4 lack LVDS hardware."
+  },
+
+  "model_rules": {
+    "iMac9,1":        {"panel": "lvds", "driver": "eg91", "note": "A1225 24\". Needs EnableGop91/LVDS ROMs. Best cards: M4000, M5100, W5170M, M6000. AVOID M6100/W6170M/W6150M (overheat under load)."},
+    "iMac10,1-A1311": {"panel": "lvds", "driver": "eg",   "note": "21.5\" LVDS. Use LVDS ROMs. Polaris/GCN4 (WX/RX) have no LVDS: internal boot screen only via external DP + driver board."},
+    "iMac10,1-A1312": {"panel": "edp",  "driver": "eg",   "forbid_methods": ["eg2"], "note": "27\" eDP. EG2 shows a white screen here — use EG or GOP only."},
+    "iMac10,1":       {"panel": "unknown", "driver": "eg", "ambiguous": true, "note": "dmidecode cannot tell A1311 (21.5\" LVDS) from A1312 (27\" eDP). Confirm your panel: A1312/eDP must NOT use EG2."},
+    "iMac11,1":       {"panel": "edp", "driver": "any", "note": "27\" eDP."},
+    "iMac11,2":       {"panel": "edp", "driver": "any", "note": "21.5\" eDP."},
+    "iMac11,3":       {"panel": "edp", "driver": "any", "note": "27\" eDP."},
+    "iMac12,1":       {"panel": "edp", "driver": "any", "note": "21.5\" eDP."},
+    "iMac12,2":       {"panel": "edp", "driver": "any", "note": "27\" eDP. Only card enabling BOTH external connectors + boot screen where noted."}
+  },
+
+  "cards": [
+    {
+      "name": "AMD FirePro M4000 (Venus, GCN1)", "family": "GCN1",
+      "match": {"device": ["6821"], "name_globs": ["M4000", "Venus"]},
+      "lvds": true,
+      "roms": [
+        {"file": "GOP/M4000-GOP.rom", "method": "gop"},
+        {"file": "LVDS/M4000-GOP-LVDS.rom", "method": "gop", "panel": "lvds"},
+        {"file": "EG2/M4000-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG/M4000-EnableGop.rom", "method": "eg"},
+        {"file": "EG/M4000-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds"},
+        {"file": "UGA/M4000_EBC.rom", "method": "uga"}
+      ],
+      "notes": "Good low-power card, works down to iMac9,1."
+    },
+    {
+      "name": "AMD FirePro M5100 (GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["M5100"]},
+      "lvds": true, "memory_variants": true,
+      "roms": [
+        {"file": "GOP/M5100-Elpida-GOP.rom", "method": "gop", "mem": "Elpida"},
+        {"file": "GOP/M5100-HynixAFS-GOP.rom", "method": "gop", "mem": "HynixAFS"},
+        {"file": "GOP/M5100-HynixBFR-GOP.rom", "method": "gop", "mem": "HynixBFR"},
+        {"file": "LVDS/M5100-GOP-LVDS.rom", "method": "gop", "panel": "lvds"},
+        {"file": "EG2/M5100-ElpidaSamsung-EG2_adj.rom", "method": "eg2", "mem": "Elpida/Samsung"},
+        {"file": "EG2/M5100-HynixAFR-EG2_adj.rom", "method": "eg2", "mem": "HynixAFR"},
+        {"file": "EG2/M5100-HynixBFR-EG2_adj.rom", "method": "eg2", "mem": "HynixBFR"},
+        {"file": "EG/M5100-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds"},
+        {"file": "EG/M5100-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"},
+        {"file": "EG/M5100-EnableGop91-LVDS-HynixAFR.rom", "method": "eg91", "panel": "lvds", "mem": "HynixAFR"},
+        {"file": "EG/M5100-EnableGop91-LVDS-HynixBFR.rom", "method": "eg91", "panel": "lvds", "mem": "HynixBFR"},
+        {"file": "UGA/M5100_EBC.rom", "method": "uga"}
+      ],
+      "notes": "MATCH THE MEMORY VENDOR (Elpida/Samsung vs Hynix AFR/BFR/AFS) to your card. A wrong memory ROM can corrupt VRAM training."
+    },
+    {
+      "name": "AMD FirePro M6000 (GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["M6000"]},
+      "lvds": true,
+      "roms": [
+        {"file": "GOP/M6000-GOP.rom", "method": "gop"},
+        {"file": "EG2/M6000-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG/M6000-EnableGop.rom", "method": "eg"},
+        {"file": "EG/M6000-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds"},
+        {"file": "EG/M6000-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"},
+        {"file": "UGA/M6000_EBC.rom", "method": "uga"}
+      ]
+    },
+    {
+      "name": "AMD FirePro M6100 (Saturn, GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["M6100"]},
+      "lvds": true, "memory_variants": true, "hot": true,
+      "roms": [
+        {"file": "EG/M6100-General-EnableGop.rom", "method": "eg"},
+        {"file": "EG/M6100-Elpida-EnableGop.rom", "method": "eg", "mem": "Elpida"},
+        {"file": "EG/M6100-HynixAFR-EnableGop.rom", "method": "eg", "mem": "HynixAFR"},
+        {"file": "EG/M6100-HynixBFR-EnableGop.rom", "method": "eg", "mem": "HynixBFR"},
+        {"file": "EG/M6100-HynixBFR-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds", "mem": "HynixBFR"},
+        {"file": "EG/M6100-Samsung-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds", "mem": "Samsung"},
+        {"file": "EG/M6100-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"},
+        {"file": "EG/M6100-HynixBFR-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds", "mem": "HynixBFR"}
+      ],
+      "notes": "Runs HOT — overheats iMac9,1 under load (README). Match memory vendor. Only EnableGop (EG) ROMs are published for this card."
+    },
+    {
+      "name": "AMD FirePro W5170M (Venus, GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["W5170"]},
+      "lvds": true,
+      "roms": [
+        {"file": "GOP/W5170M-GOP.rom", "method": "gop"},
+        {"file": "EG2/W5170M-EG2.rom", "method": "eg2"},
+        {"file": "EG2/W5170M-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG/W5170M-EnableGop.rom", "method": "eg"},
+        {"file": "EG/W5170M-EnableGop-LVDS.rom", "method": "eg", "panel": "lvds"},
+        {"file": "EG/W5170M-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"},
+        {"file": "UGA/W5170_EBC.rom", "method": "uga"}
+      ]
+    },
+    {
+      "name": "AMD FirePro W6150M (Saturn, GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["W6150"]},
+      "hot": true,
+      "roms": [
+        {"file": "GOP/W6150M_GOP.rom", "method": "gop"},
+        {"file": "EG/W6150M-4GB-EnableGop.rom", "method": "eg", "vram": "4GB"}
+      ],
+      "notes": "Runs hot — overheats iMac9,1 (README)."
+    },
+    {
+      "name": "AMD FirePro W6170M (Saturn, GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["W6170"]},
+      "hot": true,
+      "roms": [
+        {"file": "GOP/W6170M-GOP.rom", "method": "gop"},
+        {"file": "GOP/W6170M-4GB-GOP.rom", "method": "gop", "vram": "4GB"},
+        {"file": "EG2/W6170M-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG2/W6170M-4GB-EFI_adj.rom", "method": "eg2", "vram": "4GB"},
+        {"file": "EG/W6170M-EnableGop.rom", "method": "eg"},
+        {"file": "EG/W6170M-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"}
+      ],
+      "notes": "Runs hot — overheats iMac9,1 (README)."
+    },
+    {
+      "name": "AMD FirePro W7170M (GCN1)", "family": "GCN1",
+      "match": {"name_globs": ["W7170"]},
+      "roms": [
+        {"file": "EG2/W7170M-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG/W7170M-EnableGop.rom", "method": "eg"}
+      ]
+    },
+    {
+      "name": "AMD FirePro S7100X (Tonga, GCN3)", "family": "GCN3",
+      "match": {"name_globs": ["S7100"]},
+      "roms": [
+        {"file": "GOP/S7100X-6930-LVTMA-GOP.rom", "method": "gop"},
+        {"file": "EG2/S7100X-6930-LVTMA-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG/S7100X-6939-LVTMA-EnableGop.rom", "method": "eg"}
+      ]
+    },
+    {
+      "name": "AMD Radeon Pro WX3200 (Lexa, Polaris 12)", "family": "GCN4-Polaris",
+      "match": {"device": ["6981"], "name_globs": ["WX3200"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/WX3200_GOP.rom", "method": "gop"},
+        {"file": "EG/WX3200_EnableGop.rom", "method": "eg"}
+      ],
+      "notes": "Polaris/GCN4: no LVDS. Internal boot screen only on eDP iMacs (11,x/12,x)."
+    },
+    {
+      "name": "AMD Radeon Pro WX4130 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
+      "match": {"device": ["67e1", "67e0"], "name_globs": ["WX4130"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/WX4130_GOP.rom", "method": "gop"},
+        {"file": "EG2/WX4130_EG2_adj.rom", "method": "eg2"},
+        {"file": "EG2/WX4130-EG2_adj_ALT_VRAM.rom", "method": "eg2", "vram": "alt"},
+        {"file": "EG/WX4130_EnableGop.rom", "method": "eg"},
+        {"file": "EG/WX4130_EnableGop_ALT.rom", "method": "eg", "vram": "alt"}
+      ],
+      "notes": "Polaris/GCN4: no LVDS (eDP iMacs only). If your VRAM differs, try the ALT_VRAM variant."
+    },
+    {
+      "name": "AMD Radeon Pro WX4150 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
+      "match": {"device": ["67e0"], "name_globs": ["WX4150"]},
+      "lvds": false, "memory_variants": true,
+      "roms": [
+        {"file": "GOP/WX4150_GOP.rom", "method": "gop"},
+        {"file": "GOP/WX4150_GOP_ALT_VRAM.rom", "method": "gop", "vram": "alt"},
+        {"file": "EG2/WX4150_EG2_adj.rom", "method": "eg2"},
+        {"file": "EG2/WX4150-EG2_adj_ALT_VRAM.rom", "method": "eg2", "vram": "alt"},
+        {"file": "EG/WX4150_EnableGop.rom", "method": "eg"},
+        {"file": "EG/WX4150_EnableGop_ALT.rom", "method": "eg", "vram": "alt"},
+        {"file": "EG/WX4150_HyinxAJR_EnableGop.rom", "method": "eg", "mem": "HynixAJR"}
+      ],
+      "notes": "Polaris/GCN4: no LVDS (eDP iMacs only). Match VRAM (std vs ALT_VRAM) and memory (HynixAJR variant) to your board."
+    },
+    {
+      "name": "AMD Radeon Pro WX4170 (Baffin, Polaris 11)", "family": "GCN4-Polaris",
+      "match": {"device": ["67e0"], "name_globs": ["WX4170"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/WX4170_GOP.rom", "method": "gop"},
+        {"file": "GOP/WX4170_GOP_ALT_VRAM.rom", "method": "gop", "vram": "alt"},
+        {"file": "EG2/WX4170-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG2/WX4170-EG2_adj_ALT_VRAM.rom", "method": "eg2", "vram": "alt"},
+        {"file": "EG/WX4170_EnableGop.rom", "method": "eg"},
+        {"file": "EG/WX4170_EnableGop_ALT.rom", "method": "eg", "vram": "alt"}
+      ],
+      "notes": "Polaris/GCN4: no LVDS (eDP iMacs only)."
+    },
+    {
+      "name": "AMD Radeon Pro WX7100 (Ellesmere, Polaris 10)", "family": "GCN4-Polaris",
+      "match": {"device": ["67c4", "67c7"], "name_globs": ["WX7100"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/WX7100-GOP.rom", "method": "gop"},
+        {"file": "GOP/WX7100-GOP_ALT_VRAM.rom", "method": "gop", "vram": "alt"},
+        {"file": "EG2/WX7100-EG2_adj.rom", "method": "eg2"},
+        {"file": "EG2/WX7100-EG2_adj_ALT_VRAM.rom", "method": "eg2", "vram": "alt"},
+        {"file": "EG/WX7100-EnableGop.rom", "method": "eg"},
+        {"file": "EG/WX7100-EnableGop_ALT_VRAM.rom", "method": "eg", "vram": "alt"},
+        {"file": "EG/WX7100_1243_EnableGop.rom", "method": "eg", "note": "subsystem 1243"}
+      ],
+      "notes": "Polaris/GCN4: no LVDS (eDP iMacs only)."
+    },
+    {
+      "name": "AMD Radeon Pro RX470 (Ellesmere, Polaris 10)", "family": "GCN4-Polaris",
+      "match": {"device": ["67df"], "name_globs": ["RX470"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/RX470-GOP.rom", "method": "gop"},
+        {"file": "EG2/RX470-EG2.rom", "method": "eg2"}
+      ],
+      "notes": "Device 67df is shared with RX480/570/580/590 — confirm this is an RX470 mobile before flashing. Polaris: eDP iMacs only."
+    },
+    {
+      "name": "AMD Radeon Pro RX480 (Ellesmere, Polaris 10)", "family": "GCN4-Polaris",
+      "match": {"device": ["67df"], "name_globs": ["RX480"]},
+      "lvds": false,
+      "roms": [
+        {"file": "GOP/RX480-67DF-GOP.rom", "method": "gop"},
+        {"file": "GOP/RX480_GOP.rom", "method": "gop"},
+        {"file": "EG2/RX480_4GB_EG_adj.rom", "method": "eg2", "vram": "4GB"},
+        {"file": "EG/RX480_EnableGop.rom", "method": "eg"}
+      ],
+      "notes": "Device 67df is shared with RX470/570/580/590 — confirm the exact board. Polaris: eDP iMacs only."
+    },
+    {
+      "name": "AMD Radeon Pro RX5500XT (Navi 14)", "family": "RDNA1",
+      "match": {"device": ["7340", "7341", "7347"], "name_globs": ["RX5500", "5500XT"]},
+      "lvds": false,
+      "roms": [
+        {"file": "EG2/RX5500XT-NV14-EG2.rom", "method": "eg2"},
+        {"file": "EG/RX5500XT-EnableGop.rom", "method": "eg"},
+        {"file": "EG/RX5500XT-4GB-EnableGop.rom", "method": "eg", "vram": "4GB"}
+      ],
+      "notes": "Navi. Backlight control needs the legacy-vBIOS SSDT/DeviceProperties mod (README note 4)."
+    },
+    {
+      "name": "AMD Radeon Pro M370 (Strato/Cape Verde)", "family": "GCN1",
+      "match": {"name_globs": ["M370"]},
+      "roms": [
+        {"file": "EG2/M370-2820-EG2_.rom", "method": "eg2"}
+      ]
+    },
+    {
+      "name": "AMD Cape Verde XTA generic (Venus 6821)", "family": "GCN1",
+      "match": {"device": ["6821"], "name_globs": ["Venus"]},
+      "roms": [
+        {"file": "EG2/Venus_XTA--6821.rom", "method": "eg2"}
+      ],
+      "notes": "Generic Venus/Cape Verde XTA (device 6821) fallback."
+    },
+    {
+      "name": "AMD Radeon HD 7950 Mac (Tahiti, GCN1)", "family": "GCN1",
+      "match": {"device": ["679a", "6798"], "name_globs": ["7950"]},
+      "roms": [
+        {"file": "UGA/HD7950_MAC.rom", "method": "uga"}
+      ],
+      "notes": "Legacy UGA boot-screen ROM only."
+    },
+    {
+      "name": "AMD Radeon R9 M290X (Tonga/Amethyst) — UNTESTED", "family": "GCN3",
+      "match": {"device": ["6920", "6921"], "name_globs": ["M290X"]},
+      "roms": [
+        {"file": "UGA/M290X_UNTESTED.rom", "method": "uga"}
+      ],
+      "notes": "Marked UNTESTED upstream."
+    }
+  ]
+}

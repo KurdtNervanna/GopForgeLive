@@ -30,18 +30,19 @@ recommendation, mandatory backups, and confirmations wrapped around them.
 
 ```
 bin/gopwizard.sh        # main TUI (whiptail; falls back to plain prompts)
-bin/lib/                # ui, detect, catalog, vbios, bootrom, safety
-catalog/                # gpu-gop-catalog.json + SCHEMA.md (verified-only auto-flash)
+bin/lib/                # ui, detect, library, vbios, bootrom, safety
+catalog/                # imac-boot-screen-matrix.json + SCHEMA.md (model/panel/memory rules)
 docs/                   # WORKFLOW / INSTALL / RECOVERY
-tools/                  # fetch-vendor, install-to-usb, build-image (stub)
+tools/                  # fetch-vendor, fetch-roms, install-to-usb, build-image (stub)
 vendor/gopforge/        # populated by tools/fetch-vendor.sh (not committed)
-roms/                   # EnableGop GCN4 vBIOS drop (not committed)
+roms/                   # full IMAC-EFI-BOOT-SCREEN vBIOS library (GPL-3.0, fetched, not committed)
 ```
 
 ## Quick start
 
 ```bash
 ./tools/fetch-vendor.sh                 # pull GopForge + EnableGop tooling
+./tools/fetch-roms.sh                   # pull the whole IMAC-EFI-BOOT-SCREEN vBIOS library
 ./tools/install-to-usb.sh /mnt/usb      # onto a GRML-FLASH USB's data partition
 # boot the Mac from that USB, then:
 sudo bash bin/gopwizard.sh
@@ -53,9 +54,11 @@ See [docs/INSTALL.md](docs/INSTALL.md) for the full setup and
 ## Safety model
 
 - Every hardware write is preceded by a **verified backup** (size + sha256).
-- GPU **auto-flash is limited to catalog entries marked `verified: true`** — the
-  seed catalog is entirely unverified on purpose, so nothing auto-flashes until a
-  human confirms a board on real hardware.
+- GPU ROMs are recommended from the **iMac boot-screen matrix**, which detects your
+  iMac model + GPU and marks each candidate **✓ suitable / ⚠ caution / ✗ won't work**
+  (e.g. EG2 white-screens on iMac10,1 A1312; Polaris has no LVDS; iMac9,1 needs
+  EnableGop91; memory-vendor ROMs must match your VRAM). It warns on ✗ but doesn't
+  hard-block, since edge cases exist.
 - BootROM writes require a **double confirmation**; GopForge itself refuses to
   patch anything that isn't a MacPro4,1/5,1 image.
 - Read [docs/RECOVERY.md](docs/RECOVERY.md) and keep a CH341A handy for the

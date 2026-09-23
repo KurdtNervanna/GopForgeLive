@@ -9,13 +9,19 @@ polished image.
    [GRML-FLASH release](https://github.com/Ausdauersportler/GRML-FLASH/releases)
    `.img` to a USB/SD with Balena Etcher. It already bundles `flashrom`,
    `amdvbflash`, `nvflash`, `UEFIPatch`, and the EnableGop GCN4 vBIOS set.
-2. On a networked machine, populate the vendored tools:
+2. On a networked machine, populate the vendored tools and the ROM library:
    ```bash
-   ./tools/fetch-vendor.sh          # clones GopForge + pre-caches EnableGop.ffs
+   ./tools/fetch-vendor.sh   # clones GopForge + pre-caches EnableGop.ffs
+   ./tools/fetch-roms.sh     # pulls the whole IMAC-EFI-BOOT-SCREEN vBIOS set
    ```
-3. (Optional) copy the EnableGop GCN4 `.rom` files shipped on the GRML-FLASH USB
-   (under its `flash/video/...`) into `./roms/`, and set the matching
-   `subsystems`/`verified` fields in `catalog/gpu-gop-catalog.json` once tested.
+   `fetch-roms.sh` downloads every ROM from
+   [Ausdauersportler/IMAC-EFI-BOOT-SCREEN](https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN)
+   (GPL-3.0), unzips the packed ones into `roms/<METHOD>/`, and generates
+   `roms/index.json` by reading each vBIOS's PCI device id. These GPL blobs stay
+   under `roms/` (fetched, never committed to this MIT repo).
+3. The wizard recommends from `catalog/imac-boot-screen-matrix.json`, which encodes
+   the upstream model/panel/memory rules. It only ever offers ROMs that are actually
+   present under `roms/`.
 4. Mount the USB's data/persistence partition and install:
    ```bash
    ./tools/install-to-usb.sh /path/to/mounted/usb

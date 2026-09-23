@@ -1,9 +1,13 @@
-# Vendored upstream tools — populated by tools/fetch-vendor.sh, not committed.
-/vendor/gopforge/
+# Vendored upstream — populated by tools/fetch-*.sh, not committed.
+# GopForge is MIT; IMAC-EFI-BOOT-SCREEN ROMs are GPL-3.0 — both stay out of this
+# MIT repo and are fetched at build time.
+/vendor/*
+!/vendor/README.md
 /vendor/*.ffs
 /vendor/DXEInject*
 
-# GPU vBIOS ROM drop — licensing varies; keep binaries out of the repo.
+# GPU vBIOS ROM library — GPL-3.0 blobs from IMAC-EFI-BOOT-SCREEN + generated
+# index.json/UPSTREAM files; fetched by tools/fetch-roms.sh, never committed.
 /roms/*
 !/roms/.gitkeep
 

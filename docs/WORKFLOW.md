@@ -15,9 +15,10 @@ both:
   │ GPU vBIOS branch   │                        │ Mac BootROM branch        │
   │ (amdvbflash/nvflash)│                       │ (flashrom + GopForge)     │
   │                    │                        │                           │
-  │ detect card        │                        │ dump ROM (flashrom -r)    │
-  │ → catalog match    │                        │ → GopForge --check (ID)   │
-  │ → backup vBIOS     │                        │ → GopForge --inject       │
+  │ detect card+model  │                        │ dump ROM (flashrom -r)    │
+  │ → matrix match     │                        │ → GopForge --check (ID)   │
+  │   (✓/⚠/✗ per model)│                        │ → GopForge --inject       │
+  │ → backup vBIOS     │                        │                           │
   │ → flash GOP vBIOS  │                        │ → flashrom -w (write back)│
   └────────────────────┘                        └───────────────────────────┘
 ```

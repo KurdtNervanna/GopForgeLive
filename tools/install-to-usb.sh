@@ -17,12 +17,22 @@ TARGET="$DEST/gopforge-live"
 echo "» installing GopForge-Live to $TARGET"
 mkdir -p "$TARGET"
 
-# Copy the runnable parts (skip git + local roms cache is copied if present).
-for d in bin catalog docs vendor roms; do
+# Copy the runnable parts. roms/ is the unpacked vBIOS library (from
+# tools/fetch-roms.sh); vendor/gopforge is needed at runtime for the BootROM
+# path. The bulky vendor/imac-efi-boot-screen source clone is NOT copied — its
+# ROMs already live under roms/.
+for d in bin catalog docs roms; do
   [ -e "$HERE/$d" ] || continue
   cp -a "$HERE/$d" "$TARGET/"
 done
 cp -a "$HERE/README.md" "$TARGET/" 2>/dev/null || true
+if [ -d "$HERE/vendor/gopforge" ]; then
+  mkdir -p "$TARGET/vendor"; cp -a "$HERE/vendor/gopforge" "$TARGET/vendor/"
+fi
+
+roms_n=$(find "$TARGET/roms" -type f -iname '*.rom' 2>/dev/null | wc -l | tr -d ' ')
+echo "» bundled $roms_n vBIOS ROMs"
+[ "$roms_n" -gt 0 ] || echo "! roms/ is empty — run ./tools/fetch-roms.sh before installing."
 
 # Ensure scripts are executable + LF (FAT keeps no exec bit, so also provide a
 # launcher that calls bash explicitly).
