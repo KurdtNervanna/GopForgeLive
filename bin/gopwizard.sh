@@ -50,6 +50,9 @@ EOF
 
 preflight() {
   require_root
+  # Locate amdvbflash/nvflash on the GRML-FLASH medium (not on PATH) and stage them.
+  locate_flash_tools || true
+  [ -n "${GFL_TOOLBIN:-}" ] && [ -d "$GFL_TOOLBIN" ] && case ":$PATH:" in *":$GFL_TOOLBIN:"*) : ;; *) PATH="$GFL_TOOLBIN:$PATH";; esac
   local miss=()
   command -v lspci >/dev/null 2>&1 || miss+=("pciutils(lspci)")
   command -v flashrom >/dev/null 2>&1 || miss+=("flashrom")

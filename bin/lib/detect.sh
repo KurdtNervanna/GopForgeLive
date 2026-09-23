@@ -107,8 +107,8 @@ detect_report() {
   {
     echo "System model : ${GFL_MAC_MODEL:-<not an Apple system / unknown>}"
     echo "flashrom     : $(command -v flashrom >/dev/null 2>&1 && flashrom --version 2>/dev/null | head -n1 || echo 'missing')"
-    echo "amdvbflash   : $(command -v amdvbflash >/dev/null 2>&1 && echo present || echo 'missing')"
-    echo "nvflash      : $(command -v nvflash   >/dev/null 2>&1 && echo present || echo 'missing')"
+    echo "amdvbflash   : $([ -n "${GFL_AMDVBFLASH:-}" ] && echo "present  ${GFL_AMDVBFLASH}" || echo 'missing (need GRML-FLASH flash/video)')"
+    echo "nvflash      : $([ -n "${GFL_NVFLASH:-}" ] && echo "present  ${GFL_NVFLASH}" || echo 'missing (need GRML-FLASH flash/video)')"
     echo
     echo "Display adapters:"
     local i
