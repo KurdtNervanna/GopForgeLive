@@ -17,3 +17,9 @@
 *.bin
 *-enablegop.rom
 Backups/
+
+# Base images downloaded by flash-usb/get-base-image.sh
+/flash-usb/*.img
+/flash-usb/*.iso
+/flash-usb/*.zip
+/flash-usb/*.img.*

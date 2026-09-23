@@ -22,6 +22,38 @@ detect_mac_model() {
   esac
 }
 
+# Machine capability profile — decides which guided path a machine may use.
+# Policy (per project design):
+#   * Classic Mac Pro 4,1/5,1  -> BootROM EnableGop path only (dump/GopForge/flash),
+#                                 NO guided GPU vBIOS flashing.
+#   * Supported iMac 2009-2011 -> guided GPU vBIOS flashing only, NO BootROM path.
+#   * MacPro3,1 and earlier / other models / non-Apple -> nothing (unsupported).
+# Sets: GFL_MACHINE_CLASS  cmp-bootrom | imac-gpu | unsupported
+#       GFL_ALLOW_BOOTROM / GFL_ALLOW_GPU  (0|1)
+#       GFL_MACHINE_LABEL / GFL_MACHINE_NOTE
+machine_profile() {
+  detect_mac_model
+  local m="$GFL_MAC_MODEL"
+  GFL_MACHINE_CLASS="unsupported"; GFL_ALLOW_BOOTROM=0; GFL_ALLOW_GPU=0
+  GFL_MACHINE_LABEL="${m:-non-Apple / unknown}"; GFL_MACHINE_NOTE=""
+  case "$m" in
+    MacPro4,1|MacPro5,1)
+      GFL_MACHINE_CLASS="cmp-bootrom"; GFL_ALLOW_BOOTROM=1; GFL_ALLOW_GPU=0
+      GFL_MACHINE_NOTE="Classic Mac Pro. Boot screen = inject EnableGop into the Mac BootROM (dump -> GopForge -> flash). Guided GPU vBIOS flashing is intentionally not offered here (use Expert override if a card needs GOP in its own vBIOS too)." ;;
+    iMac9,1|iMac10,1|iMac11,1|iMac11,2|iMac11,3|iMac12,1|iMac12,2)
+      GFL_MACHINE_CLASS="imac-gpu"; GFL_ALLOW_GPU=1; GFL_ALLOW_BOOTROM=0
+      GFL_MACHINE_NOTE="Supported iMac (2009-2011). Boot screen = flash a GOP-enabled vBIOS onto the GPU. The BootROM/GopForge path is for Mac Pro only and is disabled here." ;;
+    MacPro1,1|MacPro2,1|MacPro3,1)
+      GFL_MACHINE_NOTE="$m is 32-bit-EFI / pre-GCN era — not supported by these boot-screen methods. Nothing to flash." ;;
+    iMac*|MacPro*|Macmini*|MacBook*)
+      GFL_MACHINE_NOTE="$m is outside the supported set (Mac Pro 4,1/5,1 and iMac 2009-2011). Guided flashing disabled." ;;
+    "")
+      GFL_MACHINE_NOTE="Not an Apple system, or the model could not be read. Guided flashing disabled; use Expert override only if you know exactly what you are doing." ;;
+    *)
+      GFL_MACHINE_NOTE="Unrecognized model ($m). Guided flashing disabled." ;;
+  esac
+}
+
 # Populate the GFL_GPU_* arrays from lspci. Requires pciutils.
 detect_gpus() {
   GFL_GPU_BDF=(); GFL_GPU_VENDOR=(); GFL_GPU_DEVICE=()

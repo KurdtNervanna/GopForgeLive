@@ -104,6 +104,9 @@ browse_library_flash() { # vendorid gpu_name
 }
 
 flow_gpu_vbios() {
+  if [ "${GFL_ALLOW_GPU:-0}" != 1 ] && [ "${GFL_EXPERT:-0}" != 1 ]; then
+    ui_msg "Not available here" "Guided GPU vBIOS flashing is offered on supported iMacs (2009-2011).
+Detected: ${GFL_MACHINE_LABEL:-unknown}."; return 0; fi
   local i; i="$(choose_gpu_index)" || return 0
   local ven="${GFL_GPU_VENDOR[$i]}" dev="${GFL_GPU_DEVICE[$i]}" sub="${GFL_GPU_SUBSYS[$i]}"
   local name="${GFL_GPU_NAME[$i]}"
@@ -165,6 +168,9 @@ Read the markers — GopForge-Live will not stop you flashing a ✗."
 # BootROM (EnableGop) path
 # ============================================================================
 flow_bootrom() {
+  if [ "${GFL_ALLOW_BOOTROM:-0}" != 1 ] && [ "${GFL_EXPERT:-0}" != 1 ]; then
+    ui_msg "Not available here" "The BootROM / GopForge path applies to classic Mac Pro 4,1/5,1 only.
+Detected: ${GFL_MACHINE_LABEL:-unknown}."; return 0; fi
   bootrom_tools_ok || { ui_msg "Missing tools" "flashrom/perl/GopForge not all present. See docs/INSTALL.md and tools/fetch-vendor.sh."; return 0; }
   detect_mac_model
   ui_yesno "BootROM EnableGop" \
@@ -217,9 +223,14 @@ See docs/RECOVERY.md. Backup: $dump"
 # Read-only helpers
 # ============================================================================
 flow_dumps() {
+  local ab="${GFL_ALLOW_BOOTROM:-0}" ag="${GFL_ALLOW_GPU:-0}"
+  [ "${GFL_EXPERT:-0}" = 1 ] && { ab=1; ag=1; }
+  local args=()
+  [ "$ag" = 1 ] && args+=( gpu "Save a GPU vBIOS" )
+  [ "$ab" = 1 ] && args+=( rom "Save the system BootROM" )
+  args+=( back "Back" )
   local c
-  c="$(ui_menu "Read-only dumps" "Take a backup without flashing anything." \
-    gpu "Save a GPU vBIOS" rom "Save the system BootROM" back "Back")" || return 0
+  c="$(ui_menu "Read-only dumps" "Take a backup without flashing anything." "${args[@]}")" || return 0
   case "$c" in
     gpu)
       local i; i="$(choose_gpu_index)" || return 0
@@ -235,22 +246,50 @@ flow_dumps() {
 
 # ============================================================================
 main_menu() {
+  machine_profile
+  GFL_EXPERT="${GFL_EXPERT:-0}"
   while true; do
+    # Effective allowances (expert override unlocks everything).
+    local ab="$GFL_ALLOW_BOOTROM" ag="$GFL_ALLOW_GPU"
+    [ "$GFL_EXPERT" = 1 ] && { ab=1; ag=1; }
+
+    local args=( detect "Detect hardware (full report)" )
+    [ "$ag" = 1 ] && args+=( gpu "GPU vBIOS GOP flash (guided)" )
+    [ "$ab" = 1 ] && args+=( rom "Mac BootROM EnableGop (dump→patch→flash)" )
+    { [ "$ag" = 1 ] || [ "$ab" = 1 ]; } && args+=( dump "Read-only backups" )
+    if [ "$GFL_ALLOW_BOOTROM" = 0 ] && [ "$GFL_ALLOW_GPU" = 0 ]; then
+      if [ "$GFL_EXPERT" = 1 ]; then args+=( expert "Expert override: ON — disable it" )
+      else                          args+=( expert "Expert override: unlock paths anyway" ); fi
+    fi
+    args+=( log "View log" quit "Quit" )
+
+    local gate
+    if   [ "$ag" = 1 ] && [ "$GFL_MACHINE_CLASS" = imac-gpu ]; then gate="→ guided GPU vBIOS flashing"
+    elif [ "$ab" = 1 ] && [ "$GFL_MACHINE_CLASS" = cmp-bootrom ]; then gate="→ BootROM EnableGop (GopForge)"
+    elif [ "$GFL_EXPERT" = 1 ]; then gate="→ EXPERT: all paths unlocked (gating ignored)"
+    else gate="→ no guided actions for this machine"; fi
+
     local c
     c="$(ui_menu "GopForge-Live $GFL_VERSION" \
-"All-in-one GOP boot-screen flashing wizard.
-Working dir: $GFL_WORKDIR" \
-      detect "1) Detect hardware (report)" \
-      gpu    "2) GPU vBIOS GOP flash" \
-      rom    "3) Mac BootROM EnableGop (dump→patch→flash)" \
-      dump   "4) Read-only backups" \
-      log    "5) View log" \
-      quit   "6) Quit")" || break
+"Machine: $GFL_MACHINE_LABEL  [$GFL_MACHINE_CLASS]
+$gate
+
+$GFL_MACHINE_NOTE" "${args[@]}")" || break
     case "$c" in
-      detect) local t; t="$(mktemp)"; detect_report >"$t" 2>&1; ui_textbox "Hardware" "$t"; rm -f "$t" ;;
+      detect) local t; t="$(mktemp)"; { detect_report; echo; echo "Machine class: $GFL_MACHINE_CLASS (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU expert=$GFL_EXPERT)"; echo "$GFL_MACHINE_NOTE"; } >"$t" 2>&1; ui_textbox "Hardware" "$t"; rm -f "$t" ;;
       gpu)    flow_gpu_vbios ;;
       rom)    flow_bootrom ;;
       dump)   flow_dumps ;;
+      expert)
+        if [ "$GFL_EXPERT" = 1 ]; then GFL_EXPERT=0; warn "expert override disabled"
+        elif ui_yesno "Enable expert override?" \
+"This machine ($GFL_MACHINE_LABEL) is not a supported target, so guided flashing
+is disabled for your safety.
+
+Expert override unlocks BOTH the GPU vBIOS and BootROM paths regardless of the
+detected machine. Flashing the wrong target can permanently brick hardware and
+there is no guided safety net. Only continue if you know exactly what you are
+doing. Enable?"; then GFL_EXPERT=1; warn "EXPERT OVERRIDE ENABLED"; fi ;;
       log)    [ -f "$GFL_LOG" ] && ui_textbox "Log" "$GFL_LOG" || ui_msg "Log" "empty" ;;
       quit)   break ;;
     esac
@@ -260,7 +299,9 @@ Working dir: $GFL_WORKDIR" \
 # --- CLI --------------------------------------------------------------------
 case "${1:-}" in
   --version) echo "$GFL_VERSION"; exit 0 ;;
-  --detect)  preflight; detect_report; exit 0 ;;
+  --detect)  preflight; detect_report; machine_profile
+             echo; echo "Machine class: $GFL_MACHINE_CLASS (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU)"
+             echo "$GFL_MACHINE_NOTE"; exit 0 ;;
   --help|-h)
     cat <<EOF
 GopForge-Live $GFL_VERSION

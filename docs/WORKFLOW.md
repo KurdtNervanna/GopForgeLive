@@ -1,8 +1,10 @@
 # GopForge-Live workflow
 
 The goal is a **native pre-boot GOP screen** on an EFI-era Mac with a modern GPU.
-Getting there can need work on **two** independent targets, and the wizard covers
-both:
+There are **two** independent targets. The wizard detects the machine first and
+only offers the one that applies: **Mac Pro 4,1/5,1 → BootROM branch**,
+**supported iMac 2009–2011 → GPU vBIOS branch**, everything else → nothing (an
+Expert override can unlock both, at your own risk).
 
 ```
                  ┌─────────────────────────────────────────┐

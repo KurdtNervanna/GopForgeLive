@@ -12,6 +12,11 @@
 #   4. optionally add an autostart hook (e.g. ~/.zlogin) to run bin/gopwizard.sh
 #   5. optionally rebuild with grml2usb for a persistent custom image
 set -Eeuo pipefail
-echo "build-image.sh is a stub — use tools/install-to-usb.sh for now."
-echo "See docs/INSTALL.md for the manual grml2usb remaster steps."
+echo "build-image.sh is a stub for a single auto-launching remastered image."
+echo "For now, make the USB with the cross-platform writers:"
+echo "  ./flash-usb/get-base-image.sh"
+echo "  sudo ./flash-usb/write-image-linux.sh <image.img> /dev/sdX   (or macos/windows)"
+echo "or drop the bundle onto an existing GRML-FLASH USB:"
+echo "  ./tools/install-to-usb.sh <mountpoint>"
+echo "See flash-usb/README.md and docs/INSTALL.md."
 exit 0
