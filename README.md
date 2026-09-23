@@ -56,13 +56,17 @@ ROM library onto its FAT partition. See [flash-usb/README.md](flash-usb/README.m
 (Already have a GRML-FLASH USB? Skip the writers and use
 `./tools/install-to-usb.sh /mnt/usb`.)
 
-**Auto-launch on boot (Linux, one shot):** `tools/build-image.sh` writes the image,
-installs the bundle, and wires an autostart hook so `gopwizard.sh` runs on boot with
-no shell command:
+**All-in-one auto-launch image (Linux):** `tools/remaster-image.sh` bakes the wizard +
+ROM library into a single bootable file that launches on boot (via an additive
+live-boot squashfs module — the base image's Mac/PC boot is left untouched):
 ```bash
-sudo ./tools/build-image.sh --device /dev/sdX --image <grml-flash.img>
+sudo ./tools/remaster-image.sh --img grml-flash.img --out gopforge-live.img
+sudo ./flash-usb/write-image-linux.sh gopforge-live.img /dev/sdX --no-install
 ```
-(The autostart wiring is best-effort/untested; the write + install core is reliable.)
+See [docs/REMASTER.md](docs/REMASTER.md). A lighter alternative,
+`tools/build-image.sh`, writes a base image and wires autostart onto the data
+partition without remastering. (Both autostart paths are best-effort/untested; the
+write + install core is reliable.)
 
 ## Boot the target machine
 

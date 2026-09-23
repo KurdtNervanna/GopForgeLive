@@ -23,6 +23,10 @@ GFL_LIB="$GFL_BIN/lib"
 # ROM search root: EnableGop GCN4 set shipped by GRML-FLASH, or a user drop.
 GFL_ROMS="${GFL_ROMS:-$GFL_ROOT/roms}"
 
+# Prefer a bundled static jq (the remastered image ships one) so matrix matching
+# works even when the live OS has no jq of its own.
+[ -x "$GFL_BIN/jq" ] && case ":$PATH:" in *":$GFL_BIN:"*) : ;; *) PATH="$GFL_BIN:$PATH";; esac
+
 # shellcheck source=lib/ui.sh
 . "$GFL_LIB/ui.sh"
 # workdir must exist before other libs log into it
