@@ -4,6 +4,8 @@
 #
 #   sudo ./tools/remaster-image.sh --img <grml-flash.img> [--out <out.img>]
 #                                  [--grow-mb N] [--comp gzip|zstd|xz]
+#   # advanced / testing (no root): build just the module into a mounted live/ dir
+#   ./tools/remaster-image.sh --build-module-only <path/to/live>
 #
 # HOW IT WORKS (non-destructive to the base squashfs):
 #   GRML uses live-boot, which stacks EVERY squashfs found in the medium's live/
@@ -22,7 +24,7 @@
 set -Eeuo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-IMG=""; OUT=""; GROW_MB=0; COMP="gzip"
+IMG=""; OUT=""; GROW_MB=0; COMP="gzip"; MODULE_ONLY=0; LIVEDIR_ARG=""
 JQ_URL="${JQ_URL:-https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -30,6 +32,7 @@ while [ $# -gt 0 ]; do
     --out)   OUT="$2"; shift 2;;
     --grow-mb) GROW_MB="$2"; shift 2;;
     --comp)  COMP="$2"; shift 2;;
+    --build-module-only) MODULE_ONLY=1; LIVEDIR_ARG="$2"; shift 2;;
     -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown arg: $1"; exit 2;;
   esac
@@ -39,11 +42,98 @@ die(){ echo "✗ $*" >&2; exit 1; }
 say(){ printf '\033[36m» %s\033[0m\n' "$*"; }
 ok(){  printf '\033[32m✓ %s\033[0m\n' "$*"; }
 
-[ "$(id -u)" = 0 ] || die "run as root (sudo)."
-[ -n "$IMG" ] && [ -f "$IMG" ] || die "usage: sudo $0 --img <grml-flash.img> [--out out.img]"
-for t in losetup mksquashfs rsync blkid mount umount; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
+# Assemble the additive module tree and squash it into $LIVEDIR. Uses globals
+# REPO / LIVEDIR / COMP / JQ_URL. Root-independent — safe to test standalone via
+# --build-module-only against a plain directory.
+gfl_build_module() {
+  MODROOT="$(mktemp -d)"
+  say "assembling additive module"
+  install -d "$MODROOT/opt/gopforge-live"
+  for d in bin catalog docs roms; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
+  install -d "$MODROOT/opt/gopforge-live/vendor"
+  rsync -a "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
+  rsync -a "$REPO/README.md" "$MODROOT/opt/gopforge-live/" 2>/dev/null || true
+
+  # static jq for reliable matrix matching
+  if command -v curl >/dev/null 2>&1; then
+    say "fetching static jq for the image"
+    curl -fsSL -o "$MODROOT/opt/gopforge-live/bin/jq" "$JQ_URL" && chmod +x "$MODROOT/opt/gopforge-live/bin/jq" \
+      || echo "! jq fetch failed — image will fall back to name-based matching"
+  fi
+  chmod +x "$MODROOT/opt/gopforge-live/bin/"*.sh 2>/dev/null || true
+
+  # autostart: a systemd service that runs the wizard on tty1, plus a getty
+  # override so it owns the console.
+  install -d "$MODROOT/etc/systemd/system" \
+            "$MODROOT/etc/systemd/system/multi-user.target.wants" \
+            "$MODROOT/etc/systemd/system/getty@tty1.service.d"
+  cat > "$MODROOT/etc/systemd/system/gopforge.service" <<'UNIT'
+[Unit]
+Description=GopForge-Live wizard (auto-launch on tty1)
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=idle
+ExecStart=/opt/gopforge-live/bin/autostart.sh
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  ln -sf ../gopforge.service "$MODROOT/etc/systemd/system/multi-user.target.wants/gopforge.service"
+  cat > "$MODROOT/etc/systemd/system/getty@tty1.service.d/override.conf" <<'OVR'
+# Disabled: GopForge-Live owns tty1 (see gopforge.service).
+[Unit]
+ConditionPathExists=/opt/gopforge-live/DISABLED-BY-DEFAULT-NEVER
+OVR
+
+  local MOD="$LIVEDIR/zz-gopforge.squashfs"
+  say "building $MOD (comp=$COMP)"
+  rm -f "$MOD"
+  mksquashfs "$MODROOT" "$MOD" -noappend -comp "$COMP" -no-progress >/dev/null \
+    || die "mksquashfs failed (disk full? try --grow-mb)"
+  ok "module: $(du -h "$MOD" | cut -f1)"
+
+  # If live-boot uses an explicit module list (filesystem.module or any *.module),
+  # append ours so it is included. The glob covers filesystem.module too.
+  local lst
+  for lst in "$LIVEDIR"/*.module; do
+    [ -f "$lst" ] || continue
+    grep -q 'zz-gopforge.squashfs' "$lst" || echo "zz-gopforge.squashfs" >> "$lst"
+    ok "registered module in $(basename "$lst")"
+  done
+  rm -rf "$MODROOT"; MODROOT=""
+}
+
+# Common preflight (both modes need these).
+for t in mksquashfs rsync; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
 [ -d "$REPO/vendor/gopforge" ] || die "vendor/gopforge missing — run tools/fetch-vendor.sh"
 [ -n "$(find "$REPO/roms" -name '*.rom' 2>/dev/null | head -n1)" ] || die "roms/ empty — run tools/fetch-roms.sh"
+
+# --- test/advanced mode: build the module against a plain live dir, no root ---
+if [ "$MODULE_ONLY" = 1 ]; then
+  [ -d "$LIVEDIR_ARG" ] || die "--build-module-only needs an existing live/ directory"
+  LIVEDIR="$LIVEDIR_ARG"
+  gfl_build_module
+  ok "module built into $LIVEDIR"
+  if command -v unsquashfs >/dev/null 2>&1; then
+    say "module contents (top of tree):"
+    unsquashfs -l "$LIVEDIR/zz-gopforge.squashfs" 2>/dev/null | grep -E '/(opt/gopforge-live|etc/systemd)($|/[^/]*$)' | head -20
+  fi
+  exit 0
+fi
+
+# --- full image remaster (needs root) ---
+[ "$(id -u)" = 0 ] || die "run as root (sudo)."
+[ -n "$IMG" ] && [ -f "$IMG" ] || die "usage: sudo $0 --img <grml-flash.img> [--out out.img]"
+for t in losetup blkid mount umount; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
 
 OUT="${OUT:-${IMG%.img}-gopforge.img}"
 say "copying base image → $OUT"
@@ -83,68 +173,8 @@ done
 [ -n "$LIVEDIR" ] || die "could not find a live/ dir with a squashfs on any partition of the image"
 ok "live dir: ${LIVEDIR#$LIVE_MNT}  (partition $PART)"
 
-# --- build the additive module tree ----------------------------------------
-MODROOT="$(mktemp -d)"
-say "assembling additive module"
-install -d "$MODROOT/opt/gopforge-live"
-for d in bin catalog docs roms; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
-install -d "$MODROOT/opt/gopforge-live/vendor"
-rsync -a "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
-rsync -a "$REPO/README.md" "$MODROOT/opt/gopforge-live/" 2>/dev/null || true
-
-# static jq for reliable matrix matching
-if command -v curl >/dev/null 2>&1; then
-  say "fetching static jq for the image"
-  curl -fsSL -o "$MODROOT/opt/gopforge-live/bin/jq" "$JQ_URL" && chmod +x "$MODROOT/opt/gopforge-live/bin/jq" \
-    || echo "! jq fetch failed — image will fall back to name-based matching"
-fi
-chmod +x "$MODROOT/opt/gopforge-live/bin/"*.sh 2>/dev/null || true
-
-# autostart: a systemd service that runs the wizard on tty1, plus a getty
-# override so it owns the console.
-install -d "$MODROOT/etc/systemd/system" \
-          "$MODROOT/etc/systemd/system/multi-user.target.wants" \
-          "$MODROOT/etc/systemd/system/getty@tty1.service.d"
-cat > "$MODROOT/etc/systemd/system/gopforge.service" <<'UNIT'
-[Unit]
-Description=GopForge-Live wizard (auto-launch on tty1)
-After=multi-user.target
-Conflicts=getty@tty1.service
-
-[Service]
-Type=idle
-ExecStart=/opt/gopforge-live/bin/autostart.sh
-StandardInput=tty
-StandardOutput=tty
-StandardError=journal
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-Restart=no
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-ln -sf ../gopforge.service "$MODROOT/etc/systemd/system/multi-user.target.wants/gopforge.service"
-cat > "$MODROOT/etc/systemd/system/getty@tty1.service.d/override.conf" <<'OVR'
-# Disabled: GopForge-Live owns tty1 (see gopforge.service).
-[Unit]
-ConditionPathExists=/opt/gopforge-live/DISABLED-BY-DEFAULT-NEVER
-OVR
-
-# --- squash and install ------------------------------------------------------
-MOD="$LIVEDIR/zz-gopforge.squashfs"
-say "building $MOD (comp=$COMP)"
-rm -f "$MOD"
-mksquashfs "$MODROOT" "$MOD" -noappend -comp "$COMP" -no-progress >/dev/null || die "mksquashfs failed (disk full? try --grow-mb)"
-ok "module: $(du -h "$MOD" | cut -f1)"
-
-# If live-boot uses an explicit module list, append ours so it is included.
-for lst in "$LIVEDIR/filesystem.module" "$LIVEDIR"/*.module; do
-  [ -f "$lst" ] || continue
-  grep -q 'zz-gopforge.squashfs' "$lst" || echo "zz-gopforge.squashfs" >> "$lst"
-  ok "registered module in $(basename "$lst")"
-done
+# --- build + install the additive module ------------------------------------
+gfl_build_module
 
 sync
 say "detaching"

@@ -4,6 +4,10 @@
 # doing all three stages on the live USB.
 
 GFL_GOPFORGE="${GFL_GOPFORGE:-$GFL_ROOT/vendor/gopforge/gopforge.sh}"
+# Where the cached EnableGop.ffs / EnableGopDirect.ffs / DXEInject live (put there
+# by tools/fetch-vendor.sh). Passed to GopForge via --tools-dir so it resolves them
+# no matter what CWD the wizard runs from.
+GFL_GOPFORGE_TOOLS="${GFL_GOPFORGE_TOOLS:-$(dirname "$GFL_GOPFORGE")/tools}"
 
 # flashrom programmer for in-system Mac SPI. cMP/iMac use the internal PCH SPI.
 GFL_FLASHROM_PROG="${GFL_FLASHROM_PROG:-internal}"
@@ -12,6 +16,10 @@ bootrom_tools_ok() {
   command -v flashrom >/dev/null 2>&1 || { err "flashrom missing"; return 1; }
   [ -x "$GFL_GOPFORGE" ] || [ -f "$GFL_GOPFORGE" ] || { err "gopforge.sh not found at $GFL_GOPFORGE (run tools/fetch-vendor.sh)"; return 1; }
   command -v perl >/dev/null 2>&1 || { err "perl missing (GopForge needs it)"; return 1; }
+  # Soft check: warn if the EnableGop tooling isn't cached (injection would then
+  # need network, which a field USB usually lacks).
+  [ -f "$GFL_GOPFORGE_TOOLS/EnableGop.ffs" ] || [ -f "$GFL_GOPFORGE_TOOLS/EnableGopDirect.ffs" ] \
+    || warn "no cached EnableGop.ffs in $GFL_GOPFORGE_TOOLS — injection will need network (run tools/fetch-vendor.sh before building the USB)"
   return 0
 }
 
@@ -42,7 +50,8 @@ bootrom_inject() { # dump variant
   out="${dump%.rom}-enablegop.rom"
   [ "$variant" = direct ] && flag="--direct"
   info "GopForge injecting EnableGop ($variant) …"
-  if ! bash "$GFL_GOPFORGE" --inject "$dump" -o "$out" $flag -y >>"$GFL_LOG" 2>&1; then
+  if ! bash "$GFL_GOPFORGE" --inject "$dump" -o "$out" $flag -y \
+        --tools-dir "$GFL_GOPFORGE_TOOLS" >>"$GFL_LOG" 2>&1; then
     err "GopForge injection failed — see $GFL_LOG"; return 1
   fi
   # GopForge guarantees size-invariance; re-check against the source size.
