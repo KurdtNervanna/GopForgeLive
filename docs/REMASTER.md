@@ -7,7 +7,7 @@ auto-launches the wizard — no shell command, no separate bundle copy.
 # on a Linux host / WSL:
 ./tools/fetch-vendor.sh
 ./tools/fetch-roms.sh
-sudo apt-get install -y dmg2img          # GRML-FLASH ships a compressed .dmg
+sudo apt-get install -y dmg2img fatresize gdisk   # dmg convert + FAT grow + GPT
 ./flash-usb/get-base-image.sh            # downloads the .dmg and converts → raw .img
 sudo ./tools/remaster-image.sh --img flash-usb/NOVEMBER_BLUES.img --out flash-usb/gopforge-live.img
 # then write gopforge-live.img to a USB. WSL can't see USB sticks, so use the

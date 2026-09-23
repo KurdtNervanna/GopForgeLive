@@ -24,7 +24,7 @@
 set -Eeuo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-IMG=""; OUT=""; GROW_MB=0; COMP="gzip"; MODULE_ONLY=0; LIVEDIR_ARG=""
+IMG=""; OUT=""; GROW_MB=""; COMP="gzip"; MODULE_ONLY=0; LIVEDIR_ARG=""
 JQ_URL="${JQ_URL:-https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -149,12 +149,28 @@ OUT="${OUT:-${IMG%.img}-gopforge.img}"
 say "copying base image → $OUT"
 cp --reflink=auto -f "$IMG" "$OUT"
 
-# Optionally grow the file (does NOT resize partitions; only useful if the last
-# FAT partition already has slack — most GRML-FLASH images do). For safety we
-# just enlarge the container so a mildly-larger module fits when there's slack.
+# Grow the FAT partition so the module fits. GRML-FLASH images ship packed full,
+# so by default we auto-grow by (bundle size + margin). --grow-mb N overrides,
+# --grow-mb 0 skips growing. This enlarges the file, extends the GPT partition to
+# the new end, and resizes the FAT filesystem (needs sgdisk + fatresize).
+if [ -z "$GROW_MB" ]; then
+  need_mb="$(du -smc "$REPO/roms" "$REPO/bin" "$REPO/catalog" "$REPO/docs" "$REPO/vendor/gopforge" 2>/dev/null | awk 'END{print $1}')"
+  GROW_MB=$(( ${need_mb:-120} + 80 ))
+fi
 if [ "$GROW_MB" -gt 0 ]; then
-  say "growing image by ${GROW_MB} MiB"
-  truncate -s "+$((GROW_MB))M" "$OUT"
+  command -v sgdisk    >/dev/null 2>&1 || die "growing needs sgdisk (gdisk package)"
+  command -v fatresize >/dev/null 2>&1 || die "growing the FAT needs 'fatresize' (sudo apt-get install -y fatresize) — or pass --grow-mb 0"
+  say "growing image + FAT partition by ${GROW_MB} MiB"
+  truncate -s "+${GROW_MB}M" "$OUT"
+  sgdisk -e "$OUT" >/dev/null 2>&1                       # relocate backup GPT to new end
+  pstart="$(sgdisk -i 1 "$OUT" 2>/dev/null | awk -F'[ :]+' '/First sector/{print $3}')"
+  [ -n "$pstart" ] || die "could not read partition 1 start for resize"
+  sgdisk -d 1 -n "1:${pstart}:0" -t 1:0700 "$OUT" >/dev/null 2>&1   # extend part 1 to the end
+  gl="$(losetup -fP --show "$OUT")"; sleep 1
+  gp="${gl}p1"; [ -b "$gp" ] || gp="$gl"
+  fatresize -s max "$gp" >/dev/null 2>&1 || { losetup -d "$gl" 2>/dev/null; die "fatresize failed on $gp"; }
+  losetup -d "$gl" 2>/dev/null
+  ok "FAT partition grown"
 fi
 
 cleanup() {
