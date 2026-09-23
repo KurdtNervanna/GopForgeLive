@@ -4,13 +4,20 @@
 auto-launches the wizard — no shell command, no separate bundle copy.
 
 ```bash
-# on a Linux host, as root:
+# on a Linux host / WSL:
 ./tools/fetch-vendor.sh
 ./tools/fetch-roms.sh
-sudo ./tools/remaster-image.sh --img grml-flash.img --out gopforge-live.img
-# then write it to a USB:
-sudo ./flash-usb/write-image-linux.sh gopforge-live.img /dev/sdX --no-install
+sudo apt-get install -y dmg2img          # GRML-FLASH ships a compressed .dmg
+./flash-usb/get-base-image.sh            # downloads the .dmg and converts → raw .img
+sudo ./tools/remaster-image.sh --img flash-usb/NOVEMBER_BLUES.img --out flash-usb/gopforge-live.img
+# then write gopforge-live.img to a USB. WSL can't see USB sticks, so use the
+# Windows writer or balenaEtcher:
+#   .\flash-usb\write-image-windows.ps1 -Image .\flash-usb\gopforge-live.img -NoInstall
 ```
+
+> The GRML-FLASH release asset is a **zlib-compressed `.dmg`**. `losetup` needs a
+> raw `.img`, so `get-base-image.sh` and `remaster-image.sh` convert it with
+> `dmg2img`. balenaEtcher can write the raw `.dmg` directly if you skip remastering.
 
 ## Why the GRML-FLASH `.img`, and why an additive module
 

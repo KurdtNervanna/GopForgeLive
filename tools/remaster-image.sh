@@ -132,8 +132,18 @@ fi
 
 # --- full image remaster (needs root) ---
 [ "$(id -u)" = 0 ] || die "run as root (sudo)."
-[ -n "$IMG" ] && [ -f "$IMG" ] || die "usage: sudo $0 --img <grml-flash.img> [--out out.img]"
+[ -n "$IMG" ] && [ -f "$IMG" ] || die "usage: sudo $0 --img <grml-flash.img|.dmg> [--out out.img]"
 for t in losetup blkid mount umount; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
+
+# GRML-FLASH ships a compressed .dmg; losetup needs a raw .img. Convert if needed.
+case "$IMG" in
+  *.dmg)
+    command -v dmg2img >/dev/null 2>&1 \
+      || die "input is a compressed .dmg — install a converter (sudo apt-get install -y dmg2img) or pass a raw .img"
+    raw="${IMG%.dmg}.img"
+    if [ ! -s "$raw" ]; then say "converting .dmg → raw .img (dmg2img)"; dmg2img -i "$IMG" -o "$raw" || die "dmg2img failed"; fi
+    IMG="$raw"; ok "using raw image $IMG" ;;
+esac
 
 OUT="${OUT:-${IMG%.img}-gopforge.img}"
 say "copying base image → $OUT"
