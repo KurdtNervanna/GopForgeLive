@@ -90,8 +90,8 @@ card_menu_items() { # cardjson  -> prints: <relfile>\n<label>\n ... (pairs)
   local card="$1"
   local lvds; lvds="$(jq -r '.lvds // "unknown"' <<<"$card")"
   # method rank: gop=0 eg2=1 eg91=1 eg=2 uga=3
-  jq -r '.roms[] | [.file, (.method//""), (.panel//""), (.mem//""), (.vram//""), (.note//"")] | @tsv' <<<"$card" |
-  while IFS=$'\t' read -r file method panel mem vram note; do
+  jq -r '.roms[] | [.file, (.method//""), (.panel//""), (.mem//""), (.vram//""), (.note//"")] | join("\u001f")' <<<"$card" |
+  while IFS=$'\x1f' read -r file method panel mem vram note; do
     local abs; abs="$(resolve_rom "$file" || true)"
     [ -n "$abs" ] || continue                        # skip roms not fetched
     local marker; marker="$(_rom_marker "$method" "$panel")"

@@ -31,7 +31,7 @@ bootrom_dump() {
   dir="$(gfl_backup_dir firmware/Backups)"
   out="$dir/bootrom-$(date +%Y%m%d-%H%M%S).rom"
   info "reading system BootROM via flashrom ($GFL_FLASHROM_PROG) …"
-  if ! flashrom --programmer "$GFL_FLASHROM_PROG" -r "$out" >>"$GFL_LOG" 2>&1; then
+  if ! _run_logged flashrom --programmer "$GFL_FLASHROM_PROG" -r "$out"; then
     err "flashrom read failed — see $GFL_LOG"; return 1
   fi
   verify_dump "$out" || return 1
@@ -64,7 +64,7 @@ bootrom_write() { # patched_rom
   local rom="$1"
   [ -f "$rom" ] || { err "patched ROM not found: $rom"; return 1; }
   info "writing BootROM via flashrom (this can take a minute) …"
-  if ! flashrom --programmer "$GFL_FLASHROM_PROG" -w "$rom" >>"$GFL_LOG" 2>&1; then
+  if ! _run_logged flashrom --programmer "$GFL_FLASHROM_PROG" -w "$rom"; then
     err "flashrom write failed — see $GFL_LOG (BootROM may be unchanged; check RECOVERY.md)"; return 1
   fi
   ok "flashrom write + verify completed"

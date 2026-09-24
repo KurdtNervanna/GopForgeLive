@@ -29,3 +29,7 @@ Backups/
 /tools/EnableGop*.ffs
 /tools/.dxeinject.sha256
 /flash-usb/*.dmg
+
+# GUI dev: simulated USB + cached tools
+/dev/mock/usb/
+/dev/.cache/

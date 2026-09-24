@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# gfl-api — JSON API over the GopForge-Live engine, used by the GUI backend.
+#
+#   gfl-api <command> [args…]
+#
+# Contract:
+#   * stdout  — exactly ONE JSON document (the result), always.
+#   * stderr  — human-readable progress (streamed live into the GUI console).
+#   * exit    — 0 ok · 1 failed · 2 refused by a safety gate · 64 bad usage.
+#
+# Every command that writes to hardware re-checks its own safety gates here, so
+# the GUI can never talk it into an unsafe write:
+#   - machine gating (cMP → BootROM only, supported iMac → GPU only) unless the
+#     operator enabled Expert mode (GFL_EXPERT=1),
+#   - a verified backup taken on this USB before any GPU flash,
+#   - hard blocks for ROM methods the model forbids (EG2 on iMac10,1 A1312…),
+#   - 4 MiB / fingerprint / EnableGop checks before a BootROM write,
+#   - an exact typed confirmation phrase (GFL_CONFIRM).
+#
+# SPDX-License-Identifier: MIT
+set -Eeuo pipefail
+
+GFL_BIN="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export GFL_TTY=/dev/stderr GFL_NO_COLOR=1
+# shellcheck source=lib/bootstrap.sh
+. "$GFL_BIN/lib/bootstrap.sh"
+
+GFL_EXPERT="${GFL_EXPERT:-0}"
+GFL_MOCK="${GFL_MOCK:-0}"
+
+# Byte signatures (lower-case hex, little-endian GUIDs) — same as GopForge.
+ANCHOR_HEX="9f59e7ba6b3cb743bdf09ce07aa91aa6"   # BAE7599F-… cMP 4,1/5,1 DXE anchor
+EG_HEX="b158ba3fc0f8bc41acd8253043a3a17f"       # 3FBA58B1-… EnableGop FFS
+FOUR_MIB=4194304
+
+# --- output helpers ------------------------------------------------------------
+emit() { jq -cn "$@"; }
+fail() { # code message [exit]
+  emit --arg c "$1" --arg m "$2" '{ok:false, code:$c, error:$m}'
+  _log API "fail $1: $2"
+  exit "${3:-1}"
+}
+refuse() { fail "$1" "$2" 2; }
+need()   { [ "$#" -ge 2 ] && [ -n "$2" ] || fail usage "missing argument: $1" 64; }
+truthy() { [ "${1:-0}" = 1 ]; }
+
+bytes_count() { # file hex -> occurrences
+  perl -e 'my($f,$h)=@ARGV; my $g=pack("H*",$h); local $/;
+           open(my $fh,"<:raw",$f) or do { print 0; exit }; my $d=<$fh>;
+           my ($n,$p)=(0,0); while(($p=index($d,$g,$p))>=0){$n++;$p++} print $n' "$1" "$2"
+}
+has_fvh() { perl -0777 -ne 'exit(/_FVH/ ? 0 : 1)' "$1" 2>/dev/null; }
+
+file_json() { # path -> {path,name,size,sha256}
+  local p="$1"
+  emit --arg p "$p" --arg n "$(basename "$p")" --argjson s "$(file_size "$p")" \
+       --arg h "$(sha256_of "$p")" '{path:$p, name:$n, size:$s, sha256:$h}'
+}
+
+# A path the GUI hands back must be a real file inside our working dir.
+in_workdir() { # path
+  local p r w
+  p="$1"; [ -f "$p" ] || return 1
+  r="$(readlink -f -- "$p")"; w="$(readlink -f -- "$GFL_WORKDIR")"
+  case "$r" in "$w"/*) return 0;; *) return 1;; esac
+}
+
+allow_gpu()     { [ "${GFL_ALLOW_GPU:-0}" = 1 ]     || truthy "$GFL_EXPERT"; }
+allow_bootrom() { [ "${GFL_ALLOW_BOOTROM:-0}" = 1 ] || truthy "$GFL_EXPERT"; }
+
+setup() {
+  truthy "$GFL_MOCK" || require_root
+  locate_flash_tools >/dev/null 2>&1 || true
+  [ -n "${GFL_TOOLBIN:-}" ] && [ -d "$GFL_TOOLBIN" ] && PATH="$GFL_TOOLBIN:$PATH"
+  machine_profile
+}
+
+# Can we actually run the EnableGop injector on this OS?
+injector_state() {
+  if truthy "$GFL_MOCK"; then echo mock; return; fi
+  local d="$GFL_GOPFORGE_TOOLS/DXEInject" magic
+  [ -f "$d" ] || { echo missing; return; }
+  magic="$(od -An -tx1 -N4 "$d" 2>/dev/null | tr -d ' \n')"
+  case "$magic" in
+    7f454c46)                     echo ok ;;
+    cffaedfe|cefaedfe|cafebabe)   echo macos-only ;;
+    *)                            echo unknown ;;
+  esac
+}
+
+# --- commands ------------------------------------------------------------------
+cmd_status() {
+  local ffs_std=false ffs_dir=false
+  [ -f "$GFL_GOPFORGE_TOOLS/EnableGop.ffs" ] && ffs_std=true
+  [ -f "$GFL_GOPFORGE_TOOLS/EnableGopDirect.ffs" ] && ffs_dir=true
+  emit \
+    --arg ver "$GFL_VERSION" \
+    --arg model "${GFL_MAC_MODEL:-}" --arg label "$GFL_MACHINE_LABEL" \
+    --arg class "$GFL_MACHINE_CLASS" --arg note "$GFL_MACHINE_NOTE" \
+    --arg ab "$GFL_ALLOW_BOOTROM" --arg ag "$GFL_ALLOW_GPU" \
+    --arg expert "$GFL_EXPERT" --arg mock "$GFL_MOCK" \
+    --arg fr "$(command -v flashrom 2>/dev/null || true)" \
+    --arg amd "${GFL_AMDVBFLASH:-}" --arg nv "${GFL_NVFLASH:-}" \
+    --arg gf "$( [ -f "$GFL_GOPFORGE" ] && echo "$GFL_GOPFORGE" || true)" \
+    --arg inj "$(injector_state)" --argjson fstd "$ffs_std" --argjson fdir "$ffs_dir" \
+    --arg jqv "$(jq --version 2>/dev/null || true)" \
+    --arg wd "$GFL_WORKDIR" --arg med "${GFL_MEDIUM:-}" --arg log "$GFL_LOG" \
+    --arg roms "$(find "$GFL_ROMS" -type f -iname '*.rom' 2>/dev/null | wc -l | tr -d ' ')" \
+    --arg cmd "$(cat /proc/cmdline 2>/dev/null || true)" \
+    '{ok:true, version:$ver, mock:($mock=="1"), expert:($expert=="1"),
+      machine:{model:$model, label:$label, class:$class, note:$note,
+               allow_bootrom:($ab=="1"), allow_gpu:($ag=="1")},
+      tools:{flashrom:$fr, amdvbflash:$amd, nvflash:$nv, gopforge:$gf, jq:$jqv,
+             injector:$inj, enablegop_ffs:{standard:$fstd, direct:$fdir}},
+      storage:{workdir:$wd, medium:$med, on_usb:($med!=""), log:$log},
+      library:{roms:($roms|tonumber)}, cmdline:$cmd}'
+}
+
+cmd_hardware() { # plain-text report for the "details" view
+  local t; t="$(detect_report 2>&1 || true)"
+  emit --arg t "$t" '{ok:true, text:$t}'
+}
+
+cmd_gpus() {
+  detect_gpus >/dev/null 2>&1 || true
+  local i rows="[]"
+  for i in "${!GFL_GPU_BDF[@]}"; do
+    rows="$(jq -c --argjson i "$i" --arg bdf "${GFL_GPU_BDF[$i]}" --arg v "${GFL_GPU_VENDOR[$i]}" \
+      --arg vl "$(gpu_vendor_label "${GFL_GPU_VENDOR[$i]}")" --arg d "${GFL_GPU_DEVICE[$i]}" \
+      --arg s "${GFL_GPU_SUBSYS[$i]}" --arg n "${GFL_GPU_NAME[$i]}" \
+      '. + [{index:$i, bdf:$bdf, vendor:$v, vendor_label:$vl, device:$d, subsys:$s, name:$n,
+             flasher:(if $v=="1002" then "amd" elif $v=="10de" then "nvidia" else "" end)}]' <<<"$rows")"
+  done
+  emit --argjson g "$rows" '{ok:true, gpus:$g}'
+}
+
+cmd_model() { # [model_key] -> profile + ambiguity/variants
+  lib_ok || fail no_matrix "jq or the ROM matrix is missing"
+  local vars="[]" k n
+  if model_ambiguous; then
+    while IFS=$'\t' read -r k n; do
+      [ -n "$k" ] && vars="$(jq -c --arg k "$k" --arg n "$n" '. + [{key:$k, note:$n}]' <<<"$vars")"
+    done < <(model_variant_items)
+  fi
+  GFL_MODEL_KEY="${1:-${GFL_MAC_MODEL:-}}"; model_profile
+  emit --arg raw "${GFL_MAC_MODEL:-}" --arg key "$GFL_MODEL_KEY" --arg p "$GFL_PANEL" \
+       --arg d "$GFL_DRIVER" --arg f "$GFL_FORBID" --arg n "$GFL_MODEL_NOTE" --argjson v "$vars" \
+       '{ok:true, raw:$raw, key:$key, panel:$p, driver:$d,
+         forbid:($f|split(",")|map(select(.!=""))), note:$n,
+         ambiguous:(($v|length)>0), variants:$v}'
+}
+
+# Ranked ROM candidates for a detected GPU.
+cmd_plan() { # gpu_index [model_key]
+  need gpu_index "${1:-}"
+  lib_ok || fail no_matrix "jq or the ROM matrix is missing"
+  detect_gpus >/dev/null 2>&1 || true
+  local gi="$1"
+  [ -n "${GFL_GPU_BDF[$gi]:-}" ] || fail bad_gpu "no GPU with index $gi"
+  GFL_MODEL_KEY="${2:-${GFL_MAC_MODEL:-}}"; model_profile
+  local dev="${GFL_GPU_DEVICE[$gi]}" name="${GFL_GPU_NAME[$gi]}" cards="[]" card
+  while IFS= read -r card; do
+    [ -n "$card" ] || continue
+    local roms="[]" file method panel mem vram note abs marker level text rank forb
+    while IFS=$'\x1f' read -r file method panel mem vram note; do   # 0x1f: see library.sh
+      abs="$(resolve_rom "$file" || true)"
+      marker="$(_rom_marker "$method" "$panel")"
+      case "$marker" in ✓*) level=ok;; ⚠*) level=warn;; ✗*) level=bad;; *) level=info;; esac
+      text="${marker#* }"
+      forb=false; case ",$GFL_FORBID," in *",$method,"*) forb=true;; esac
+      rank=5; case "$method" in gop) rank=0;; eg2|eg91) rank=1;; eg) rank=2;; uga) rank=3;; esac
+      case "$level" in bad) rank=$((rank+10));; warn) rank=$((rank+5));; esac
+      [ -n "$abs" ] || rank=$((rank+50))
+      roms="$(jq -c --arg f "$file" --arg m "$method" --arg p "$panel" --arg me "$mem" \
+        --arg v "$vram" --arg no "$note" --arg a "$abs" --arg l "$level" --arg t "$text" \
+        --argjson r "$rank" --argjson fb "$forb" \
+        '. + [{file:$f, method:$m, panel:$p, mem:$me, vram:$v, note:$no, path:$a,
+               present:($a!=""), marker:{level:$l, text:$t}, forbidden:$fb, rank:$r}]' <<<"$roms")"
+    done < <(jq -r '.roms[] | [.file, (.method//""), (.panel//""), (.mem//""), (.vram//""), (.note//"")] | join("\u001f")' <<<"$card")
+    cards="$(jq -c --argjson c "$card" --argjson r "$roms" \
+      '. + [{name:$c.name, family:($c.family//""), notes:($c.notes//""), lvds:($c.lvds//null),
+             hot:($c.hot//false), memory_variants:($c.memory_variants//false),
+             roms:($r|sort_by(.rank, .file))}]' <<<"$cards")"
+  done < <(matrix_find_cards "$dev" "$name")
+  emit --argjson gi "$gi" --arg dev "$dev" --arg name "$name" --arg key "$GFL_MODEL_KEY" \
+       --arg p "$GFL_PANEL" --arg d "$GFL_DRIVER" --arg f "$GFL_FORBID" --arg n "$GFL_MODEL_NOTE" \
+       --argjson c "$cards" \
+       '{ok:true, gpu:{index:$gi, device:$dev, name:$name},
+         model:{key:$key, panel:$p, driver:$d, forbid:($f|split(",")|map(select(.!=""))), note:$n},
+         cards:$c}'
+}
+
+cmd_library() {
+  # One find + one jq pass (a jq call per ROM is far too slow for ~150 files).
+  (cd "$GFL_ROMS" 2>/dev/null && find . -type f -iname '*.rom' -printf '%P\t%s\n' | sort) |
+    jq -cRn '{ok:true, roms:[inputs | select(length>0) | split("\t")
+              | {file:.[0], method:(.[0]|split("/")[0]|ascii_downcase), size:(.[1]|tonumber)}]}'
+}
+
+cmd_adapters() { # amd|nvidia
+  need vendor "${1:-}"
+  local raw="" idx="[]"
+  case "$1" in
+    amd)    amd_present || fail no_tool "amdvbflash is not available on this USB"
+            raw="$(amd_list || true)"
+            idx="$(awk '/^[[:space:]]*[0-9]+[[:space:]]+[0-9A-Fa-f]{2}[[:space:]]/{print $1}' <<<"$raw" | jq -Rsc 'split("\n")|map(select(.!=""))|map(tonumber)')" ;;
+    nvidia) nv_present || fail no_tool "nvflash is not available on this USB"
+            raw="$(nv_list || true)"
+            idx="$(grep -oE '^<[0-9]+>' <<<"$raw" | tr -d '<>' | jq -Rsc 'split("\n")|map(select(.!=""))|map(tonumber)')" ;;
+    *)      fail usage "vendor must be amd or nvidia" 64 ;;
+  esac
+  emit --arg raw "$raw" --argjson i "$idx" '{ok:true, raw:$raw, indices:$i}'
+}
+
+cmd_backup_gpu() { # amd|nvidia index
+  need vendor "${1:-}"; need index "${2:-}"
+  allow_gpu || refuse gated "GPU vBIOS work is not offered on this machine (enable Expert mode to override)"
+  local out
+  case "$1" in
+    amd)    out="$(amd_backup "$2")" || fail backup_failed "reading the current vBIOS failed — see the log" ;;
+    nvidia) out="$(nv_backup "$2")"  || fail backup_failed "reading the current vBIOS failed — see the log" ;;
+    *)      fail usage "vendor must be amd or nvidia" 64 ;;
+  esac
+  emit --argjson f "$(file_json "$out")" '{ok:true, backup:$f}'
+}
+
+rom_method_for_file() { # relfile -> method from the matrix (first match)
+  jq -r --arg f "$1" '[.cards[].roms[] | select(.file==$f) | .method][0] // empty' "$GFL_MATRIX" 2>/dev/null
+}
+
+cmd_flash_gpu() { # amd|nvidia index romfile backup [model_key]
+  need vendor "${1:-}"; need index "${2:-}"; need rom "${3:-}"; need backup "${4:-}"
+  local vendor="$1" idx="$2" romrel="$3" backup="$4"
+  allow_gpu || refuse gated "GPU vBIOS flashing is not offered on this machine (enable Expert mode to override)"
+  [ "${GFL_CONFIRM:-}" = "FLASH" ] || refuse unconfirmed "type FLASH to confirm"
+  in_workdir "$backup" || refuse no_backup "a verified backup of this card on the USB is required first"
+  [ "$(file_size "$backup")" -gt 0 ] || refuse no_backup "the backup file is empty"
+  case "$vendor:$(basename "$backup")" in
+    amd:amd-adapter"$idx"-*|nvidia:nvidia-idx"$idx"-*) : ;;
+    *) refuse backup_mismatch "that backup was not taken from $vendor adapter $idx" ;;
+  esac
+  local rom; rom="$(resolve_rom "$romrel" || true)"
+  [ -n "$rom" ] || fail no_rom "ROM not found in the library: $romrel"
+  GFL_MODEL_KEY="${5:-${GFL_MAC_MODEL:-}}"; model_profile
+  local m; m="$(rom_method_for_file "$romrel")"
+  if [ -n "$m" ]; then
+    case ",$GFL_FORBID," in *",$m,"*)
+      truthy "$GFL_EXPERT" || refuse forbidden "${m^^} firmware is known not to work on $GFL_MODEL_KEY" ;;
+    esac
+  fi
+  _log API "flash-gpu $vendor adapter=$idx rom=$romrel backup=$backup model=$GFL_MODEL_KEY expert=$GFL_EXPERT"
+  local rc=0
+  case "$vendor" in
+    amd)    amd_flash "$idx" "$rom" no || rc=$? ;;
+    nvidia) nv_flash "$idx" "$rom"     || rc=$? ;;
+    *)      fail usage "vendor must be amd or nvidia" 64 ;;
+  esac
+  [ $rc -eq 0 ] || fail flash_failed "the flasher reported an error (exit $rc) — your backup is safe on the USB"
+  emit --arg r "$romrel" --arg b "$backup" '{ok:true, flashed:$r, backup:$b}'
+}
+
+bootrom_facts() { # file -> JSON facts
+  local f="$1" size n_anchor n_eg fvh=false
+  size="$(file_size "$f")"; n_anchor="$(bytes_count "$f" "$ANCHOR_HEX")"; n_eg="$(bytes_count "$f" "$EG_HEX")"
+  has_fvh "$f" && fvh=true
+  emit --argjson s "$size" --argjson a "$n_anchor" --argjson e "$n_eg" --argjson fvh "$fvh" \
+       --argjson four "$FOUR_MIB" \
+       '{size:$s, is_4mib:($s==$four), firmware_volume:$fvh, cmp_fingerprint:($a>0),
+         enablegop_count:$e, enablegop_present:($e>0), duplicate_enablegop:($e>1)}'
+}
+
+cmd_dump_bootrom() {
+  allow_bootrom || refuse gated "BootROM work is only offered on Mac Pro 4,1/5,1 (enable Expert mode to override)"
+  command -v flashrom >/dev/null 2>&1 || fail no_tool "flashrom is not available"
+  local out; out="$(bootrom_dump)" || fail dump_failed "reading the BootROM failed — see the log"
+  emit --argjson f "$(file_json "$out")" --argjson facts "$(bootrom_facts "$out")" \
+       '{ok:true, dump:$f, facts:$facts}'
+}
+
+cmd_check_bootrom() { # dump
+  need dump "${1:-}"
+  in_workdir "$1" || fail bad_file "not a file on this USB: $1"
+  local txt=""
+  [ -f "$GFL_GOPFORGE" ] && txt="$(bash "$GFL_GOPFORGE" --check "$1" 2>&1 | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' || true)"
+  emit --argjson facts "$(bootrom_facts "$1")" --arg t "$txt" '{ok:true, facts:$facts, report:$t}'
+}
+
+cmd_inject_bootrom() { # dump standard|direct
+  need dump "${1:-}"; need variant "${2:-}"
+  local dump="$1" variant="$2"
+  allow_bootrom || refuse gated "BootROM work is only offered on Mac Pro 4,1/5,1"
+  in_workdir "$dump" || fail bad_file "not a file on this USB: $dump"
+  case "$variant" in standard|direct) : ;; *) fail usage "variant must be standard or direct" 64 ;; esac
+  local facts; facts="$(bootrom_facts "$dump")"
+  if ! truthy "$GFL_EXPERT"; then
+    jq -e '.is_4mib' <<<"$facts" >/dev/null || refuse not_cmp "this dump is not 4 MiB — not a Mac Pro 4,1/5,1 BootROM"
+    jq -e '.cmp_fingerprint' <<<"$facts" >/dev/null || refuse not_cmp "Mac Pro 4,1/5,1 fingerprint not found in this dump"
+  fi
+  jq -e '.enablegop_present|not' <<<"$facts" >/dev/null || refuse already_patched "EnableGop is already in this BootROM — inject only into a clean dump"
+  local inj; inj="$(injector_state)"
+  case "$inj" in
+    ok) local out; out="$(bootrom_inject "$dump" "$variant")" || fail inject_failed "GopForge could not patch the dump — see the log" ;;
+    mock)
+      local out="${dump%.rom}-enablegop.rom" ffs="$GFL_GOPFORGE_TOOLS/EnableGop.ffs"
+      [ "$variant" = direct ] && ffs="$GFL_GOPFORGE_TOOLS/EnableGopDirect.ffs"
+      info "MOCK: inserting $(basename "$ffs") into free space…"; sleep 2
+      perl -e 'my($i,$o,$f)=@ARGV; local $/; open(my $a,"<:raw",$i) or die; my $d=<$a>;
+               open(my $b,"<:raw",$f) or die; my $e=<$b>; my $pad="\xFF" x (length($e)+64);
+               my $p=index($d,$pad,0x150000); die "no space" if $p<0; $p=($p+7)&~7;
+               substr($d,$p,length($e))=$e; open(my $c,">:raw",$o) or die; print $c $d' \
+           "$dump" "$out" "$ffs" || fail inject_failed "mock inject failed"
+      ok "MOCK: patched image written" ;;
+    macos-only) refuse injector_unavailable "The EnableGop injector (DXEInject) on this USB is a macOS program and cannot run here. Patching needs a Linux injector — see the docs." ;;
+    *) refuse injector_unavailable "The EnableGop injector (DXEInject) is missing on this USB." ;;
+  esac
+  local after; after="$(bootrom_facts "$out")"
+  jq -e --argjson b "$facts" '.size==$b.size and .enablegop_count==1 and .cmp_fingerprint==$b.cmp_fingerprint' <<<"$after" >/dev/null \
+    || fail validate_failed "the patched image failed validation — it will not be offered for flashing"
+  emit --argjson f "$(file_json "$out")" --argjson facts "$after" --arg v "$variant" \
+       '{ok:true, patched:$f, facts:$facts, variant:$v}'
+}
+
+cmd_write_bootrom() { # patched original_dump
+  need patched "${1:-}"; need dump "${2:-}"
+  local p="$1" d="$2"
+  allow_bootrom || refuse gated "BootROM flashing is only offered on Mac Pro 4,1/5,1"
+  [ "${GFL_CONFIRM:-}" = "FLASH BOOTROM" ] || refuse unconfirmed "type FLASH BOOTROM to confirm"
+  in_workdir "$d" || refuse no_backup "the original BootROM backup must be on this USB"
+  in_workdir "$p" || refuse bad_file "the patched image must be on this USB"
+  [ "$(readlink -f "$p")" != "$(readlink -f "$d")" ] || refuse bad_file "patched image and backup are the same file"
+  local fp fd; fp="$(bootrom_facts "$p")"; fd="$(bootrom_facts "$d")"
+  jq -e --argjson d "$fd" '.size==$d.size' <<<"$fp" >/dev/null || refuse size_mismatch "patched image and backup differ in size"
+  if ! truthy "$GFL_EXPERT"; then
+    jq -e '.is_4mib and .cmp_fingerprint and .enablegop_count==1' <<<"$fp" >/dev/null \
+      || refuse invalid_image "the patched image failed the 4 MiB / fingerprint / single-EnableGop checks"
+  fi
+  _log API "write-bootrom patched=$p backup=$d expert=$GFL_EXPERT"
+  bootrom_write "$p" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
+  emit --arg p "$p" --arg d "$d" '{ok:true, written:$p, backup:$d}'
+}
+
+cmd_backups() {
+  local rows="[]" f kind
+  for f in "$GFL_WORKDIR"/firmware/Backups/*.rom "$GFL_WORKDIR"/video/Backups/*.rom; do
+    [ -f "$f" ] || continue
+    case "$f" in */firmware/*) kind=bootrom;; *) kind=vbios;; esac
+    case "$(basename "$f")" in *-enablegop.rom) kind=patched;; esac
+    rows="$(jq -c --argjson fj "$(file_json "$f")" --arg k "$kind" \
+      --arg t "$(date -r "$f" '+%Y-%m-%d %H:%M' 2>/dev/null || true)" \
+      '. + [$fj + {kind:$k, modified:$t}]' <<<"$rows")"
+  done
+  emit --argjson r "$rows" --arg wd "$GFL_WORKDIR" --arg med "${GFL_MEDIUM:-}" \
+       '{ok:true, workdir:$wd, on_usb:($med!=""), files:($r|sort_by(.modified)|reverse)}'
+}
+
+cmd_log() { # [lines]
+  local n="${1:-400}"
+  emit --arg t "$(tail -n "$n" "$GFL_LOG" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' || true)" \
+       --arg p "$GFL_LOG" '{ok:true, path:$p, text:$t}'
+}
+
+# --- dispatch --------------------------------------------------------------------
+main() {
+  local c="${1:-}"; shift || true
+  case "$c" in
+    ""|-h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+  esac
+  setup
+  case "$c" in
+    status)          cmd_status ;;
+    hardware)        cmd_hardware ;;
+    gpus)            cmd_gpus ;;
+    model)           cmd_model "$@" ;;
+    plan)            cmd_plan "$@" ;;
+    library)         cmd_library ;;
+    adapters)        cmd_adapters "$@" ;;
+    backup-gpu)      cmd_backup_gpu "$@" ;;
+    flash-gpu)       cmd_flash_gpu "$@" ;;
+    dump-bootrom)    cmd_dump_bootrom ;;
+    check-bootrom)   cmd_check_bootrom "$@" ;;
+    inject-bootrom)  cmd_inject_bootrom "$@" ;;
+    write-bootrom)   cmd_write_bootrom "$@" ;;
+    backups)         cmd_backups ;;
+    log)             cmd_log "$@" ;;
+    *)               fail usage "unknown command: $c" 64 ;;
+  esac
+}
+main "$@"

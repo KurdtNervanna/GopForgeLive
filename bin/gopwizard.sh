@@ -13,35 +13,10 @@
 # SPDX-License-Identifier: MIT
 set -Eeuo pipefail
 
-GFL_VERSION="0.1.0-untested"
-
-# --- locate ourselves & libraries -------------------------------------------
+# --- locate ourselves & shared startup ----------------------------------------
 GFL_BIN="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-GFL_ROOT="$(cd -- "$GFL_BIN/.." && pwd)"
-GFL_LIB="$GFL_BIN/lib"
-
-# ROM search root: EnableGop GCN4 set shipped by GRML-FLASH, or a user drop.
-GFL_ROMS="${GFL_ROMS:-$GFL_ROOT/roms}"
-
-# Prefer a bundled static jq (the remastered image ships one) so matrix matching
-# works even when the live OS has no jq of its own.
-[ -x "$GFL_BIN/jq" ] && case ":$PATH:" in *":$GFL_BIN:"*) : ;; *) PATH="$GFL_BIN:$PATH";; esac
-
-# shellcheck source=lib/ui.sh
-. "$GFL_LIB/ui.sh"
-# workdir must exist before other libs log into it
-. "$GFL_LIB/safety.sh"
-GFL_MEDIUM="$(gfl_find_usb || true)"   # the USB's rw FAT mount (main shell!)
-GFL_WORKDIR="$(gfl_resolve_workdir)"
-GFL_LOG="$GFL_WORKDIR/gopforge-live.log"
-. "$GFL_LIB/detect.sh"
-. "$GFL_LIB/library.sh"
-. "$GFL_LIB/vbios.sh"
-. "$GFL_LIB/bootrom.sh"
-
-# Escape hatch: drop an empty file named "gopforge-plain" on the USB to force the
-# plain-text menu (useful if the whiptail TUI won't take keyboard input on a Mac).
-if [ -n "${GFL_MEDIUM:-}" ] && [ -e "$GFL_MEDIUM/gopforge-plain" ]; then HAVE_WHIPTAIL=0; fi
+# shellcheck source=lib/bootstrap.sh
+. "$GFL_BIN/lib/bootstrap.sh"
 
 trap 'err "aborted (line $LINENO)"' ERR
 

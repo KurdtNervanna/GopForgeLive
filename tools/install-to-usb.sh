@@ -21,7 +21,7 @@ mkdir -p "$TARGET"
 # tools/fetch-roms.sh); vendor/gopforge is needed at runtime for the BootROM
 # path. The bulky vendor/imac-efi-boot-screen source clone is NOT copied — its
 # ROMs already live under roms/.
-for d in bin catalog docs roms; do
+for d in bin catalog docs roms gui; do
   [ -e "$HERE/$d" ] || continue
   cp -a "$HERE/$d" "$TARGET/"
 done

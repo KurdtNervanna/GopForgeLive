@@ -71,7 +71,7 @@ gfl_build_module() {
   MODROOT="$(mktemp -d)"
   say "assembling additive module"
   install -d "$MODROOT/opt/gopforge-live"
-  for d in bin catalog docs roms; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
+  for d in bin catalog docs roms gui; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
   install -d "$MODROOT/opt/gopforge-live/vendor"
   rsync -a "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
   rsync -a "$REPO/README.md" "$MODROOT/opt/gopforge-live/" 2>/dev/null || true
@@ -82,7 +82,7 @@ gfl_build_module() {
     curl -fsSL -o "$MODROOT/opt/gopforge-live/bin/jq" "$JQ_URL" && chmod +x "$MODROOT/opt/gopforge-live/bin/jq" \
       || echo "! jq fetch failed — image will fall back to name-based matching"
   fi
-  chmod +x "$MODROOT/opt/gopforge-live/bin/"*.sh 2>/dev/null || true
+  chmod +x "$MODROOT/opt/gopforge-live/bin/"*.sh "$MODROOT/opt/gopforge-live/bin/gfl-api" "$MODROOT/opt/gopforge-live/gui/session.sh" 2>/dev/null || true
 
   # autostart: a systemd service that runs the wizard on tty1, plus a getty
   # override so it owns the console.

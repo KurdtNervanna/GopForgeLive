@@ -64,7 +64,7 @@ amd_backup() { # adapter_index
   dir="$(gfl_backup_dir video/Backups)"
   out="$dir/amd-adapter${idx}-$(date +%Y%m%d-%H%M%S).rom"
   info "reading current AMD vBIOS (adapter $idx) …"
-  "$GFL_AMDVBFLASH" -s "$idx" "$out" >/dev/null 2>&1 || { err "amdvbflash -s failed"; return 1; }
+  _run_logged "$GFL_AMDVBFLASH" -s "$idx" "$out" || { err "amdvbflash -s failed"; return 1; }
   verify_dump "$out" || return 1
   echo "$out"
 }
@@ -74,9 +74,9 @@ amd_flash() { # adapter_index rom force(yes/no)
   local idx="$1" rom="$2" force="${3:-no}"
   [ -f "$rom" ] || { err "ROM not found: $rom"; return 1; }
   info "flashing AMD adapter $idx with $(basename "$rom") …"
-  if [ "$force" = yes ]; then "$GFL_AMDVBFLASH" -f -p "$idx" "$rom"
-  else                        "$GFL_AMDVBFLASH"    -p "$idx" "$rom"; fi
-  local rc=$?
+  local rc=0
+  if [ "$force" = yes ]; then _run_logged "$GFL_AMDVBFLASH" -f -p "$idx" "$rom" || rc=$?
+  else                        _run_logged "$GFL_AMDVBFLASH"    -p "$idx" "$rom" || rc=$?; fi
   [ $rc -eq 0 ] && ok "amdvbflash reported success" || err "amdvbflash exit $rc"
   return $rc
 }
@@ -90,7 +90,7 @@ nv_backup() { # index
   dir="$(gfl_backup_dir video/Backups)"
   out="$dir/nvidia-idx${idx}-$(date +%Y%m%d-%H%M%S).rom"
   info "reading current NVIDIA vBIOS (index $idx) …"
-  "$GFL_NVFLASH" -i"$idx" --save "$out" >/dev/null 2>&1 || { err "nvflash --save failed"; return 1; }
+  _run_logged "$GFL_NVFLASH" -i"$idx" --save "$out" || { err "nvflash --save failed"; return 1; }
   verify_dump "$out" || return 1
   echo "$out"
 }
@@ -102,8 +102,8 @@ nv_flash() { # index rom
   info "disabling write protect on index $idx …"
   "$GFL_NVFLASH" -i"$idx" --protectoff >/dev/null 2>&1 || warn "protectoff returned non-zero (may be fine)"
   info "flashing NVIDIA index $idx with $(basename "$rom") …"
-  "$GFL_NVFLASH" -i"$idx" -6 "$rom"
-  local rc=$?
+  local rc=0
+  _run_logged "$GFL_NVFLASH" -i"$idx" -6 "$rom" || rc=$?
   "$GFL_NVFLASH" -i"$idx" --protecton >/dev/null 2>&1 || true
   [ $rc -eq 0 ] && ok "nvflash reported success" || err "nvflash exit $rc"
   return $rc

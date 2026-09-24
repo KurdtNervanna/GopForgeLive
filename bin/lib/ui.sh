@@ -9,8 +9,12 @@
 # values (a dump path captured with status lines glued to it).
 
 # Controlling terminal, or stderr if there is none (e.g. a pipe in a test).
-GFL_TTY=/dev/tty
-( : >/dev/tty ) 2>/dev/null || GFL_TTY=/dev/stderr
+# The GUI backend (gfl-api) presets GFL_TTY=/dev/stderr so status lines stream
+# into the GUI's live console while stdout stays a clean JSON channel.
+if [ -z "${GFL_TTY:-}" ]; then
+  GFL_TTY=/dev/tty
+  ( : >/dev/tty ) 2>/dev/null || GFL_TTY=/dev/stderr
+fi
 
 # --- plain-terminal colored status markers (mirrors gopforge.sh) -------------
 if [ -t 1 ] || [ "$GFL_TTY" = /dev/tty ]; then
@@ -32,12 +36,21 @@ _log() { # level msg...
 _say() { printf '%s\n' "$*" >"$GFL_TTY" 2>/dev/null || printf '%s\n' "$*" >&2; }
 
 ok()   { _say "${C_OK}✓${C_RESET} $*";   _log OK   "$*"; }
-err()  { _say "${C_ERR}✗${C_RESET} $*";  _log ERR  "$*"; printf '✗ %s\n' "$*" >&2; }
+err()  { _say "${C_ERR}✗${C_RESET} $*";  _log ERR  "$*"
+         [ "$GFL_TTY" = /dev/stderr ] || printf '✗ %s\n' "$*" >&2; }
 warn() { _say "${C_WARN}!${C_RESET} $*"; _log WARN "$*"; }
 info() { _say "${C_INFO}»${C_RESET} $*"; _log INFO "$*"; }
 dim()  { _say "${C_DIM}$*${C_RESET}"; }
 
 die()  { err "$*"; exit 1; }
+
+# Run a tool, appending everything it prints to the log AND showing it live on
+# the terminal (TUI) / GUI console (API). Never touches stdout, which callers use
+# for return values. Returns the tool's own exit status.
+_run_logged() {
+  "$@" 2>&1 | tee -a "$GFL_LOG" >"$GFL_TTY" 2>/dev/null
+  return "${PIPESTATUS[0]}"
+}
 
 # --- whiptail wrappers -------------------------------------------------------
 # All fall back to plain prompts when whiptail is missing (or forced off with a

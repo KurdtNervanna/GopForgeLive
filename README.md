@@ -2,7 +2,8 @@
 
 **An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
 
-> ⚠️ **Status: `0.1.0-untested`.** Nothing here has been run against real
+> ⚠️ **Status: `0.2.0-untested`.** Boots and runs end-to-end in QEMU (UEFI) and has
+> reached the wizard on a real Mac Pro, but no firmware has been flashed on real
 > hardware yet. Do not flash a machine you can't recover (see
 > [docs/RECOVERY.md](docs/RECOVERY.md)). This repo is private until it's tested.
 
@@ -18,6 +19,15 @@ GPU:
    [GopForge](https://github.com/KurdtNervanna/GopForge) injects EnableGop, and
    `flashrom` writes it back — the whole thing on Linux, no macOS needed.
 
+## The app
+
+The USB boots straight into a full-screen, macOS-style app (Firefox kiosk + a local
+Python backend over the same engine as the text wizard): a device overview, guided
+**Boot ROM** and **Graphics Card** flows with live progress, backups, the ROM library
+and an activity log. It falls back to the text wizard automatically if graphics can't
+start. See [docs/GUI.md](docs/GUI.md) — including `dev/run-gui-dev.sh`, which runs the
+app against simulated hardware on any Linux/WSL box.
+
 ## Why it exists
 
 GRML-FLASH gives you the tools but makes you drive them by hand. GopForge injects
@@ -29,7 +39,10 @@ recommendation, mandatory backups, and confirmations wrapped around them.
 ## Layout
 
 ```
-bin/gopwizard.sh        # main TUI (whiptail; falls back to plain prompts)
+bin/gopwizard.sh        # text wizard (whiptail; falls back to plain prompts)
+bin/gfl-api             # JSON API over the engine (used by the GUI)
+gui/                    # graphical app: server.py, session.sh, static/ SPA, firefox/ prefs
+dev/                    # run-gui-dev.sh + mock hardware for developing off-Mac
 bin/lib/                # ui, detect, library, vbios, bootrom, safety
 catalog/                # imac-boot-screen-matrix.json + SCHEMA.md (model/panel/memory rules)
 docs/                   # WORKFLOW / INSTALL / RECOVERY
