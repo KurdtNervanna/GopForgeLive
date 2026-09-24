@@ -4,6 +4,7 @@
 #
 #   sudo ./tools/remaster-image.sh --img <grml-flash.img> [--out <out.img>]
 #                                  [--grow-mb N] [--comp gzip|zstd|xz]
+#                                  [--keyboard us|de|keep]  (default us)
 #   # advanced / testing (no root): build just the module into a mounted live/ dir
 #   ./tools/remaster-image.sh --build-module-only <path/to/live>
 #
@@ -24,7 +25,7 @@
 set -Eeuo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-IMG=""; OUT=""; GROW_MB=""; COMP="gzip"; MODULE_ONLY=0; LIVEDIR_ARG=""
+IMG=""; OUT=""; GROW_MB=""; COMP="gzip"; MODULE_ONLY=0; LIVEDIR_ARG=""; KEYBOARD="us"
 JQ_URL="${JQ_URL:-https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64}"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -33,6 +34,7 @@ while [ $# -gt 0 ]; do
     --grow-mb) GROW_MB="$2"; shift 2;;
     --comp)  COMP="$2"; shift 2;;
     --build-module-only) MODULE_ONLY=1; LIVEDIR_ARG="$2"; shift 2;;
+    --keyboard) KEYBOARD="$2"; shift 2;;
     -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown arg: $1"; exit 2;;
   esac
@@ -41,6 +43,26 @@ done
 die(){ echo "✗ $*" >&2; exit 1; }
 say(){ printf '\033[36m» %s\033[0m\n' "$*"; }
 ok(){  printf '\033[32m✓ %s\033[0m\n' "$*"; }
+
+# Patch every live-boot kernel line on the medium (GRUB for EFI/Mac boot, and
+# syslinux for BIOS): add iomem=relaxed so `flashrom --programmer internal` can
+# map the chipset/SPI registers (modern kernels block it -> "/dev/mem mmap failed:
+# Operation not permitted"), and set the console keymap (GRML-FLASH ships
+# keyboard=de). Idempotent; skips macOS "._" metadata files.
+gfl_patch_bootcfg() { # fat_root
+  local root="$1" f n=0
+  for f in "$root"/boot/grub/*.cfg "$root"/boot/syslinux/*.cfg; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in ._*) continue;; esac
+    grep -q 'boot=live' "$f" || continue
+    sed -i -E '/boot=live/{ /iomem=relaxed/! s/[[:space:]]*$/ iomem=relaxed/ }' "$f"
+    if [ "$KEYBOARD" != keep ]; then
+      sed -i -E "/boot=live/ s/keyboard=[a-z]+/keyboard=${KEYBOARD}/" "$f"
+    fi
+    n=$((n+1))
+  done
+  ok "boot config: iomem=relaxed + keyboard=${KEYBOARD} on $n file(s)"
+}
 
 # Assemble the additive module tree and squash it into $LIVEDIR. Uses globals
 # REPO / LIVEDIR / COMP / JQ_URL. Root-independent — safe to test standalone via
@@ -79,7 +101,7 @@ Type=idle
 # systemd services get no TERM/HOME; whiptail needs TERM, and set -u needs HOME.
 Environment=TERM=linux HOME=/root
 ExecStart=/opt/gopforge-live/bin/autostart.sh
-StandardInput=tty
+StandardInput=tty-force
 StandardOutput=tty
 StandardError=journal
 TTYPath=/dev/tty1
@@ -236,7 +258,8 @@ fi
 [ -n "$LIVEDIR" ] || die "could not find a *.squashfs on any partition of the image"
 ok "live dir: ${LIVEDIR#$LIVE_MNT}  ($PART, base $(basename "$SQ"))"
 
-# --- build + install the additive module ------------------------------------
+# --- boot config + additive module -------------------------------------------
+gfl_patch_bootcfg "$LIVE_MNT"
 gfl_build_module
 
 sync

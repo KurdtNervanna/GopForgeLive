@@ -31,12 +31,17 @@ GFL_ROMS="${GFL_ROMS:-$GFL_ROOT/roms}"
 . "$GFL_LIB/ui.sh"
 # workdir must exist before other libs log into it
 . "$GFL_LIB/safety.sh"
+GFL_MEDIUM="$(gfl_find_usb || true)"   # the USB's rw FAT mount (main shell!)
 GFL_WORKDIR="$(gfl_resolve_workdir)"
 GFL_LOG="$GFL_WORKDIR/gopforge-live.log"
 . "$GFL_LIB/detect.sh"
 . "$GFL_LIB/library.sh"
 . "$GFL_LIB/vbios.sh"
 . "$GFL_LIB/bootrom.sh"
+
+# Escape hatch: drop an empty file named "gopforge-plain" on the USB to force the
+# plain-text menu (useful if the whiptail TUI won't take keyboard input on a Mac).
+if [ -n "${GFL_MEDIUM:-}" ] && [ -e "$GFL_MEDIUM/gopforge-plain" ]; then HAVE_WHIPTAIL=0; fi
 
 trap 'err "aborted (line $LINENO)"' ERR
 
@@ -46,6 +51,28 @@ ${C_INFO}GopForge-Live${C_RESET} $GFL_VERSION
   working dir : $GFL_WORKDIR
   log         : $GFL_LOG
 EOF
+}
+
+# Write a full snapshot to the log at startup, so even a session where the
+# operator can't navigate leaves useful diagnostics on the USB.
+log_startup() {
+  machine_profile
+  {
+    echo "================ GopForge-Live session $(date 2>/dev/null) ================"
+    echo "version : $GFL_VERSION"
+    echo "cmdline : $(cat /proc/cmdline 2>/dev/null)"
+    echo "medium  : ${GFL_MEDIUM:-<none>}   workdir: $GFL_WORKDIR   plain-menu: $([ "$HAVE_WHIPTAIL" = 1 ] && echo no || echo yes)"
+    echo
+    detect_report
+    echo
+    echo "machine class : $GFL_MACHINE_CLASS  (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU)"
+    echo "$GFL_MACHINE_NOTE"
+    echo "amdvbflash : ${GFL_AMDVBFLASH:-<not found>}"
+    echo "nvflash    : ${GFL_NVFLASH:-<not found>}"
+    echo "flashrom   : $(command -v flashrom 2>/dev/null || echo '<not found>')"
+    echo "==========================================================================="
+  } >>"$GFL_LOG" 2>&1
+  sync 2>/dev/null || true
 }
 
 preflight() {
@@ -350,5 +377,6 @@ esac
 
 banner
 preflight
+log_startup
 main_menu
-info "bye"
+info "bye"; sync 2>/dev/null || true

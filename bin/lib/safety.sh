@@ -2,17 +2,33 @@
 # safety.sh — backup, verification and confirmation helpers.
 # Nothing in GopForge-Live writes to hardware without going through here.
 
-# Resolve a persistent working dir for dumps/backups. Prefers the GRML
-# persistence mount, then the USB, then $HOME, then /tmp (last resort).
+# Find the USB's own FAT partition as it is mounted READ-WRITE in the live system.
+# GRML-FLASH boots with `persistence`, so live-boot mounts the stick rw under
+# /run/live/persistence/<dev> (e.g. sdb1). NOTE: /run/live/medium is NOT a mount
+# on GRML-FLASH — just an empty dir in the RAM overlay — so writes there vanish at
+# power-off. We only accept real mountpoints that look like GRML-FLASH (flash/ or
+# live/ present). Must be called in the main shell (not in $(...)) by the caller.
+GFL_MEDIUM="${GFL_MEDIUM:-}"
+gfl_find_usb() {
+  local m
+  for m in /run/live/persistence/* /lib/live/mount/persistence/*            /usr/lib/live/mount/persistence/* /run/live/medium /lib/live/mount/medium; do
+    [ -d "$m" ] || continue
+    mountpoint -q "$m" 2>/dev/null || continue
+    { [ -d "$m/flash" ] || [ -d "$m/live" ] || [ -d "$m/gopforge-live" ]; } || continue
+    [ -w "$m" ] || mount -o remount,rw "$m" 2>/dev/null || true
+    echo "$m"; return 0
+  done
+  return 1
+}
+
+# Working dir for the log + backups: on the USB when we can write there (so you
+# can read them on any computer afterwards), else $HOME, else /tmp (RAM-only).
 gfl_resolve_workdir() {
   local d
-  for d in \
-      /lib/live/mount/persistence/*/gopforge-live \
-      /run/live/persistence/*/gopforge-live \
-      "${GFL_USB_MNT:-}"/gopforge-live \
-      "${HOME:-/root}/gopforge-live"; do
+  for d in       "${GFL_MEDIUM:+$GFL_MEDIUM/gopforge-live}"       "${GFL_USB_MNT:-}"/gopforge-live       "${HOME:-/root}/gopforge-live"; do
     [ -n "$d" ] || continue
-    case "$d" in *'*'*) continue;; esac      # skip unmatched globs (no persistence)
+    [ "$d" = "/gopforge-live" ] && continue          # empty GFL_USB_MNT
+    case "$d" in *'*'*) continue;; esac
     if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then echo "$d"; return 0; fi
   done
   mkdir -p /tmp/gopforge-live 2>/dev/null

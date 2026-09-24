@@ -24,8 +24,9 @@ _stage_tool() { # srcpath
 # Locate amdvbflash + nvflash on the live medium (or PATH) and stage them.
 locate_flash_tools() {
   local vdir="" d found
-  for d in /run/live/medium /lib/live/mount/medium /cdrom /live/image \
-           /run/live/persistence/* /lib/live/mount/persistence/*; do
+  for d in "${GFL_MEDIUM:-}" /run/live/persistence/* /lib/live/mount/persistence/* \
+           /run/live/medium /lib/live/mount/medium /cdrom /live/image; do
+    [ -n "$d" ] || continue
     [ -d "$d/flash/video" ] && { vdir="$d/flash/video"; break; }
   done
   if [ -z "$vdir" ]; then
