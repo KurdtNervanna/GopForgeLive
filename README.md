@@ -17,7 +17,10 @@ GPU:
 3. **Back up and flash** the GPU vBIOS (`amdvbflash` / `nvflash`).
 4. **Dump → patch → flash** the Mac BootROM: `flashrom` reads it,
    [GopForge](https://github.com/KurdtNervanna/GopForge) injects EnableGop, and
-   `flashrom` writes it back — the whole thing on Linux, no macOS needed.
+   `flashrom` writes it back.
+   > **Known gap:** GopForge's injector (DXEInject) is a macOS binary, so the *patch*
+   > step can't run on the USB yet — back up/inspect/flash work, patching shows as
+   > unavailable. A Linux-native injector is the next milestone.
 
 ## The app
 
@@ -83,8 +86,9 @@ write + install core is reliable.)
 
 ## Boot the target machine
 
-Power on the Mac holding **⌥ Option**, pick the USB, then `sudo bash bin/gopwizard.sh`.
-The wizard **detects the machine and offers only what applies**:
+Power on the Mac holding **⌥ Option** and pick the USB (**EFI Boot**). The remastered
+image opens the app automatically (text wizard as fallback); on a plain GRML-FLASH USB
+run `sudo bash bin/gopwizard.sh`. It **detects the machine and offers only what applies**:
 
 | Machine | Offered |
 |---------|---------|
