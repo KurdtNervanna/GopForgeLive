@@ -19,8 +19,9 @@ export async function enter() {
 function toolRows(st) {
   const t = st.tools;
   const inj = {
-    ok: ["ok", "Ready", "Runs on this USB"],
+    ok: ["ok", "Ready", "DXEInject for Linux (UEFITool engine)"],
     mock: ["ok", "Simulated", "Demo mode"],
+    broken: ["bad", "Won’t start", "The Linux injector failed to load — see Activity"],
     "macos-only": ["warn", "macOS-only build", "Patching the Boot ROM needs a Linux injector — reading and backups still work"],
     missing: ["bad", "Missing", "Run tools/fetch-vendor.sh before building the USB"],
     unknown: ["warn", "Unrecognised", "Couldn't identify the injector binary"],

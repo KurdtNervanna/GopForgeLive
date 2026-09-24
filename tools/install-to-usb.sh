@@ -29,6 +29,12 @@ cp -a "$HERE/README.md" "$TARGET/" 2>/dev/null || true
 if [ -d "$HERE/vendor/gopforge" ]; then
   mkdir -p "$TARGET/vendor"; cp -a "$HERE/vendor/gopforge" "$TARGET/vendor/"
 fi
+# Linux DXEInject (staged off FAT at run time, since FAT keeps no exec bits)
+if [ -f "$HERE/vendor/dxeinject-linux/dxeinject.bin" ]; then
+  mkdir -p "$TARGET/vendor"; cp -a "$HERE/vendor/dxeinject-linux" "$TARGET/vendor/"
+else
+  echo "! vendor/dxeinject-linux missing — Boot ROM patching will be unavailable (sudo tools/dxeinject-linux/build.sh)"
+fi
 
 roms_n=$(find "$TARGET/roms" -type f -iname '*.rom' 2>/dev/null | wc -l | tr -d ' ')
 echo "» bundled $roms_n vBIOS ROMs"

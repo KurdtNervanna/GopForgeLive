@@ -74,6 +74,14 @@ gfl_build_module() {
   for d in bin catalog docs roms gui; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
   install -d "$MODROOT/opt/gopforge-live/vendor"
   rsync -a "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
+  # Linux DXEInject (the macOS one can't run here) — tools/dxeinject-linux/build.sh
+  if [ -f "$REPO/vendor/dxeinject-linux/dxeinject.bin" ]; then
+    rsync -a "$REPO/vendor/dxeinject-linux" "$MODROOT/opt/gopforge-live/vendor/"
+    chmod +x "$MODROOT/opt/gopforge-live/vendor/dxeinject-linux/dxeinject" \
+             "$MODROOT/opt/gopforge-live/vendor/dxeinject-linux/dxeinject.bin"
+  else
+    echo "! vendor/dxeinject-linux missing — Boot ROM patching will be unavailable (run tools/dxeinject-linux/build.sh)"
+  fi
   rsync -a "$REPO/README.md" "$MODROOT/opt/gopforge-live/" 2>/dev/null || true
 
   # static jq for reliable matrix matching

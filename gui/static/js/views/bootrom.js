@@ -188,8 +188,10 @@ function viewPatch() {
       ${choice("direct", "Direct", false, "For cards that need direct rendering. Try this if Standard gives signal at the chime but a black screen.")}
     </div>`)}
     ${when(blocked, () => html`<div style="margin-top:var(--s5)">${callout("warn", "Patching isn’t available on this USB yet",
-      html`The EnableGop injector GopForge uses (DXEInject) is a <strong>macOS program</strong> and can’t run on this Linux disk. Your backup is complete and safe —
-      you can patch it with GopForge on macOS, or wait for the Linux injector.`)}</div>`)}
+      inj === "broken"
+        ? html`The Linux EnableGop injector on this USB didn’t start. Your backup is complete and safe — the Activity log has the details.`
+        : html`This USB doesn’t include the Linux EnableGop injector. Your backup is complete and safe —
+      you can patch it with GopForge on macOS, or rebuild the USB with the injector included.`)}</div>`)}
     ${jobBlock(j, { running: "Adding EnableGop…", done: "Patched image validated", failed: "Patching failed" })}
     ${when(S.br.patched, () => html`<div style="margin-top:var(--s5)">${fileCard(S.br.patched, "patched")}</div>`)}
     <div class="btn-row">

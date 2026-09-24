@@ -13,7 +13,12 @@ GFL_MAC_MODEL=""   # e.g. MacPro5,1 / iMac12,2 (or "" if unknown / non-Mac)
 detect_mac_model() {
   GFL_MAC_MODEL=""
   if command -v dmidecode >/dev/null 2>&1; then
-    GFL_MAC_MODEL="$(dmidecode -s system-product-name 2>/dev/null | head -n1 | tr -d '\r')"
+    # `|| true`: a failing dmidecode must not kill callers running set -e/pipefail
+    GFL_MAC_MODEL="$(dmidecode -s system-product-name 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  fi
+  # the kernel's copy of the same SMBIOS field, if dmidecode is missing or failed
+  if [ -z "$GFL_MAC_MODEL" ] && [ -r /sys/class/dmi/id/product_name ]; then
+    GFL_MAC_MODEL="$(head -n1 /sys/class/dmi/id/product_name 2>/dev/null | tr -d '\r' || true)"
   fi
   # dmidecode can report generic strings on non-Apple boards; keep only Apple-ish.
   case "$GFL_MAC_MODEL" in
@@ -71,16 +76,16 @@ detect_gpus() {
 
     # -Dnnmm machine form gives: bdf "class" "vendor" "device" -rNN "svid" "sdid"
     local m ven dev svid sdid name
-    m="$(lspci -Dnnmm -s "$bdf" 2>/dev/null | head -n1)"
+    m="$(lspci -Dnnmm -s "$bdf" 2>/dev/null | head -n1 || true)"
     # Fields are quoted; pull the [id] bracket values which are stable.
     ven="$(sed -n 's/.*\[\([0-9a-fA-F]\{4\}\):[0-9a-fA-F]\{4\}\].*/\1/p' <<<"$m" | head -n1)"
     # Vendor/device from the non-machine form is easier to read for the name.
-    name="$(lspci -Dnn -s "$bdf" 2>/dev/null | sed 's/^[^ ]* //')"
+    name="$(lspci -Dnn -s "$bdf" 2>/dev/null | sed 's/^[^ ]* //' || true)"
     ven="$(sed -n 's/.*\[\([0-9a-fA-F]\{4\}\):[0-9a-fA-F]\{4\}\]$/\1/p;s/.*\[\([0-9a-fA-F]\{4\}\):[0-9a-fA-F]\{4\}\] .*/\1/p' <<<"$name" | head -n1)"
     dev="$(sed -n 's/.*\[[0-9a-fA-F]\{4\}:\([0-9a-fA-F]\{4\}\)\]$/\1/p;s/.*\[[0-9a-fA-F]\{4\}:\([0-9a-fA-F]\{4\}\)\] .*/\1/p' <<<"$name" | head -n1)"
     # Subsystem id via verbose output.
     local sub
-    sub="$(lspci -Dnn -s "$bdf" -v 2>/dev/null | sed -n 's/.*Subsystem:.*\[\([0-9a-fA-F]\{4\}:[0-9a-fA-F]\{4\}\)\].*/\1/p' | head -n1)"
+    sub="$(lspci -Dnn -s "$bdf" -v 2>/dev/null | sed -n 's/.*Subsystem:.*\[\([0-9a-fA-F]\{4\}:[0-9a-fA-F]\{4\}\)\].*/\1/p' | head -n1 || true)"
 
     GFL_GPU_BDF+=("$bdf")
     GFL_GPU_VENDOR+=("$(tr 'A-F' 'a-f' <<<"${ven:-????}")")

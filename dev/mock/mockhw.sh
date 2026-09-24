@@ -29,7 +29,7 @@ make_bootrom() { # out  — a 4 MiB image that looks like a cMP 4,1/5,1 BootROM
     my ($out,$patched)=@ARGV; my $d="\xFF" x 4194304;
     srand(51); my $blob=join("",map{chr(int(rand(256)))} 1..(0x3A0000-0x150048));
     substr($d,0x150048,length($blob))=$blob;                       # DXE drivers
-    substr($d,0x150000,0x48)=("\x00" x 40)."_FVH".("\x00" x 28);    # FV header
+    substr($d,0x150000,0x48)=("\x00" x 32).pack("Q<",0x290000)."_FVH".("\x00" x 28); # DXE FV header (as on MP51)
     substr($d,0x1A0000,16)=pack("H*","9f59e7ba6b3cb743bdf09ce07aa91aa6"); # cMP anchor
     substr($d,0x180000,16)=pack("H*","b158ba3fc0f8bc41acd8253043a3a17f") if $patched;
     open(my $fh,">:raw",$out) or die $!; print $fh $d;' "$1" "${GFL_MOCK_PATCHED:-0}"

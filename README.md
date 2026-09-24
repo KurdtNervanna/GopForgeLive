@@ -17,10 +17,10 @@ GPU:
 3. **Back up and flash** the GPU vBIOS (`amdvbflash` / `nvflash`).
 4. **Dump → patch → flash** the Mac BootROM: `flashrom` reads it,
    [GopForge](https://github.com/KurdtNervanna/GopForge) injects EnableGop, and
-   `flashrom` writes it back.
-   > **Known gap:** GopForge's injector (DXEInject) is a macOS binary, so the *patch*
-   > step can't run on the USB yet — back up/inspect/flash work, patching shows as
-   > unavailable. A Linux-native injector is the next milestone.
+   `flashrom` writes it back — all on Linux. GopForge's injector (dosdude1's
+   DXEInject) is macOS-only, so the USB carries a Linux build of the same engine:
+   [tools/dxeinject-linux](tools/dxeinject-linux/README.md) (validated against
+   Apple's MP51.fd 144.0.0.0.0).
 
 ## The app
 
@@ -49,7 +49,7 @@ dev/                    # run-gui-dev.sh + mock hardware for developing off-Mac
 bin/lib/                # ui, detect, library, vbios, bootrom, safety
 catalog/                # imac-boot-screen-matrix.json + SCHEMA.md (model/panel/memory rules)
 docs/                   # WORKFLOW / INSTALL / RECOVERY
-tools/                  # fetch-vendor, fetch-roms, install-to-usb, build-image (stub)
+tools/                  # fetch-vendor, fetch-roms, dxeinject-linux, install-to-usb, remaster-image
 flash-usb/              # Windows/macOS/Linux USB writers + base-image fetcher
 vendor/gopforge/        # populated by tools/fetch-vendor.sh (not committed)
 roms/                   # full IMAC-EFI-BOOT-SCREEN vBIOS library (GPL-3.0, fetched, not committed)
@@ -60,6 +60,7 @@ roms/                   # full IMAC-EFI-BOOT-SCREEN vBIOS library (GPL-3.0, fetc
 ```bash
 ./tools/fetch-vendor.sh                 # GopForge + EnableGop tooling
 ./tools/fetch-roms.sh                   # the whole IMAC-EFI-BOOT-SCREEN vBIOS library
+sudo ./tools/dxeinject-linux/build.sh   # Linux DXEInject (Boot ROM patching on the USB)
 ./flash-usb/get-base-image.sh           # download the GRML-FLASH base image
 sudo ./flash-usb/write-image-linux.sh <image.img> /dev/sdX      # Linux
 sudo ./flash-usb/write-image-macos.sh <image.img> /dev/diskN    # macOS
@@ -111,15 +112,19 @@ See [docs/INSTALL.md](docs/INSTALL.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md).
   A1312**) is **hard-blocked**. Where `dmidecode` is ambiguous (iMac10,1 A1311 vs
   A1312) the wizard asks which model you have first.
 - BootROM writes require a **double confirmation**; GopForge itself refuses to
-  patch anything that isn't a MacPro4,1/5,1 image.
+  patch anything that isn't a MacPro4,1/5,1 image. A patched BootROM may differ from
+  the backup **only inside the DXE volume** — NVRAM, serial/board data, microcode and
+  the boot block must be byte-identical, or it is discarded / refused for writing.
 - Read [docs/RECOVERY.md](docs/RECOVERY.md) and keep a CH341A handy for the
   BootROM path.
 
 ## Credits
 
 Builds on [Ausdauersportler/GRML-FLASH](https://github.com/Ausdauersportler/GRML-FLASH),
-[KurdtNervanna/GopForge](https://github.com/KurdtNervanna/GopForge), and
-acidanthera's EnableGop. Not affiliated with Apple.
+[KurdtNervanna/GopForge](https://github.com/KurdtNervanna/GopForge),
+acidanthera's EnableGop, dosdude1's DXEInject, and
+[LongSoft/UEFITool](https://github.com/LongSoft/UEFITool) (the engine behind the Linux
+injector, BSD-2-Clause). Not affiliated with Apple.
 
 ## License
 

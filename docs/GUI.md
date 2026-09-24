@@ -29,6 +29,8 @@ Every write is re-checked by `bin/gfl-api` no matter what the app sends:
 - firmware known not to work on your model (e.g. EG2 on the 27-inch iMac10,1) is
   blocked,
 - Boot ROM images must be 4 MB with the Mac Pro fingerprint and exactly one EnableGop,
+- a patched Boot ROM may differ from your backup **only inside the DXE volume** — NVRAM,
+  serial/board data, microcode and the boot block must be byte-identical,
 - flashing requires typing `FLASH` / `FLASH BOOTROM`, and the button only arms after
   three seconds.
 

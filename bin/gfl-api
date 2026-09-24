@@ -78,6 +78,9 @@ setup() {
 # Can we actually run the EnableGop injector on this OS?
 injector_state() {
   if truthy "$GFL_MOCK"; then echo mock; return; fi
+  # The Linux build (vendor/dxeinject-linux) is what patches on the USB.
+  if linux_dxeinject >/dev/null; then echo ok; return; fi
+  [ -f "$GFL_DXEINJECT_DIR/dxeinject.bin" ] && { echo broken; return; }
   local d="$GFL_GOPFORGE_TOOLS/DXEInject" magic
   [ -f "$d" ] || { echo missing; return; }
   magic="$(od -An -tx1 -N4 "$d" 2>/dev/null | tr -d ' \n')"
@@ -310,12 +313,15 @@ cmd_inject_bootrom() { # dump standard|direct
                substr($d,$p,length($e))=$e; open(my $c,">:raw",$o) or die; print $c $d' \
            "$dump" "$out" "$ffs" || fail inject_failed "mock inject failed"
       ok "MOCK: patched image written" ;;
-    macos-only) refuse injector_unavailable "The EnableGop injector (DXEInject) on this USB is a macOS program and cannot run here. Patching needs a Linux injector — see the docs." ;;
+    macos-only) refuse injector_unavailable "This USB only has the macOS DXEInject, which cannot run here. Rebuild the USB with tools/dxeinject-linux/build.sh." ;;
+    broken) refuse injector_unavailable "The Linux EnableGop injector on this USB failed to start — see the log." ;;
     *) refuse injector_unavailable "The EnableGop injector (DXEInject) is missing on this USB." ;;
   esac
   local after; after="$(bootrom_facts "$out")"
   jq -e --argjson b "$facts" '.size==$b.size and .enablegop_count==1 and .cmp_fingerprint==$b.cmp_fingerprint' <<<"$after" >/dev/null \
-    || fail validate_failed "the patched image failed validation — it will not be offered for flashing"
+    || { rm -f "$out"; fail validate_failed "the patched image failed validation — it will not be offered for flashing"; }
+  bootrom_changes_confined "$dump" "$out" >/dev/null \
+    || { rm -f "$out"; fail validate_failed "the patched image changed bytes outside the DXE volume — discarded"; }
   emit --argjson f "$(file_json "$out")" --argjson facts "$after" --arg v "$variant" \
        '{ok:true, patched:$f, facts:$facts, variant:$v}'
 }
@@ -333,6 +339,8 @@ cmd_write_bootrom() { # patched original_dump
   if ! truthy "$GFL_EXPERT"; then
     jq -e '.is_4mib and .cmp_fingerprint and .enablegop_count==1' <<<"$fp" >/dev/null \
       || refuse invalid_image "the patched image failed the 4 MiB / fingerprint / single-EnableGop checks"
+    bootrom_changes_confined "$d" "$p" >/dev/null \
+      || refuse invalid_image "the patched image differs from the backup outside the DXE volume (NVRAM / boot block) — refusing to write it"
   fi
   _log API "write-bootrom patched=$p backup=$d expert=$GFL_EXPERT"
   bootrom_write "$p" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
