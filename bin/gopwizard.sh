@@ -290,6 +290,53 @@ flow_dumps() {
   esac
 }
 
+# Put a saved backup back. The write and all of its gates live in gfl-api
+# (restore-bootrom / restore-gpu), shared with the graphical app.
+flow_restore() {
+  local ab="${GFL_ALLOW_BOOTROM:-0}" ag="${GFL_ALLOW_GPU:-0}" f n=0 args=()
+  [ "${GFL_EXPERT:-0}" = 1 ] && { ab=1; ag=1; }
+  local -a files=()
+  if [ "$ab" = 1 ]; then
+    for f in "$GFL_WORKDIR"/firmware/Backups/*.rom; do
+      [ -f "$f" ] || continue; case "$f" in *-enablegop.rom) continue ;; esac
+      files+=("$f"); n=$((n+1)); args+=( "$n" "Boot ROM   $(basename "$f")" )
+    done
+  fi
+  if [ "$ag" = 1 ]; then
+    for f in "$GFL_WORKDIR"/video/Backups/*.rom; do
+      [ -f "$f" ] || continue
+      files+=("$f"); n=$((n+1)); args+=( "$n" "GPU        $(basename "$f")" )
+    done
+  fi
+  [ "$n" -gt 0 ] || { ui_msg "Restore" "No backups on this USB yet."; return 0; }
+  local c; c="$(ui_menu "Restore a backup" "Pick the backup to write back." "${args[@]}")" || return 0
+  f="${files[$((c-1))]}"
+
+  local cmd confirm target
+  case "$f" in
+    */firmware/Backups/*)
+      cmd=(restore-bootrom "$f"); confirm="RESTORE BOOTROM"; target="Mac BootROM (${GFL_MAC_MODEL:-this Mac})" ;;
+    */video/Backups/amd-adapter*)
+      local i; i="$(basename "$f" | sed -E 's/^amd-adapter([0-9]+)-.*/\1/')"
+      cmd=(restore-gpu amd "$i" "$f"); confirm="RESTORE"; target="AMD adapter $i" ;;
+    */video/Backups/nvidia-idx*)
+      local i; i="$(basename "$f" | sed -E 's/^nvidia-idx([0-9]+)-.*/\1/')"
+      cmd=(restore-gpu nvidia "$i" "$f"); confirm="RESTORE"; target="NVIDIA card $i" ;;
+    *) ui_msg "Restore" "Can't tell which device $(basename "$f") belongs to."; return 0 ;;
+  esac
+  confirm_write "restore backup" "$target" "backup: $(basename "$f")" yes || return 0
+
+  local out rc=0
+  out="$(GFL_CONFIRM="$confirm" GFL_EXPERT="${GFL_EXPERT:-0}" GFL_MEDIUM="${GFL_MEDIUM:-}" GFL_WORKDIR="$GFL_WORKDIR" \
+         bash "$GFL_BIN/gfl-api" "${cmd[@]}" 2>"$GFL_TTY")" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    ui_msg "Restored" "$(basename "$f") was written back to $target.
+Shut down completely to finish."
+  else
+    ui_msg "Not restored" "$(jq -r '.error // "see the log"' <<<"$out" 2>/dev/null || echo "see $GFL_LOG")"
+  fi
+}
+
 # ============================================================================
 main_menu() {
   machine_profile
@@ -302,7 +349,7 @@ main_menu() {
     local args=( detect "Detect hardware (full report)" )
     [ "$ag" = 1 ] && args+=( gpu "GPU vBIOS GOP flash (guided)" )
     [ "$ab" = 1 ] && args+=( rom "Mac BootROM EnableGop (dump→patch→flash)" )
-    { [ "$ag" = 1 ] || [ "$ab" = 1 ]; } && args+=( dump "Read-only backups" )
+    { [ "$ag" = 1 ] || [ "$ab" = 1 ]; } && args+=( dump "Read-only backups" restore "Restore a backup" )
     if [ "$GFL_ALLOW_BOOTROM" = 0 ] && [ "$GFL_ALLOW_GPU" = 0 ]; then
       if [ "$GFL_EXPERT" = 1 ]; then args+=( expert "Expert override: ON — disable it" )
       else                          args+=( expert "Expert override: unlock paths anyway" ); fi
@@ -326,6 +373,7 @@ $GFL_MACHINE_NOTE" "${args[@]}")" || break
       gpu)    flow_gpu_vbios ;;
       rom)    flow_bootrom ;;
       dump)   flow_dumps ;;
+      restore) flow_restore ;;
       expert)
         if [ "$GFL_EXPERT" = 1 ]; then GFL_EXPERT=0; warn "expert override disabled"
         elif ui_yesno "Enable expert override?" \

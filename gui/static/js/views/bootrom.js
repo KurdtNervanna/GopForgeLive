@@ -60,6 +60,7 @@ async function doPatch() {
   if (job?.state === "done") {
     Object.assign(S.br, { patched: job.result.patched, pfacts: job.result.facts });
     toast("ok", "Patched image ready", "Validated and saved next to your backup.");
+    enter();
   } else if (job) {
     toast("bad", "Couldn’t patch the image", job.result?.error || "See the details.");
   }
@@ -261,7 +262,8 @@ function viewFlash() {
     </div>`)}
     <div style="margin-top:var(--s5)">${callout("danger", "Flashing firmware carries risk",
       html`If power is lost during the write the Mac may not start. Recovery then needs an SPI programmer (such as a CH341A) and the backup on this USB. See <span class="mono">docs/RECOVERY.md</span>.`)}</div>
-    ${jobBlock(j, { running: "Writing…", done: "Boot ROM written and verified", failed: "The write did not complete" })}
+    ${jobBlock(j, { running: "Writing…", done: "Boot ROM written and verified",
+      failed: ["stale_backup", "read_failed", "unconfirmed", "invalid_image"].includes(j?.result?.code) ? "Nothing was written" : "The write did not complete" })}
     ${when(b.error, () => html`<div style="margin-top:var(--s4)">${callout("danger", "Don’t turn off your Mac yet",
       html`${b.error} The Boot ROM may be unchanged or partially written. Open Activity for details, then retry the flash —
       or put your original back from <strong>Backups › Restore</strong>. Keep the Mac powered on until one of them succeeds.`)}</div>`)}
