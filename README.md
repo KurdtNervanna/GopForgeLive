@@ -2,8 +2,9 @@
 
 **An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
 
-> ⚠️ **Status: `0.1.0-untested`.** Nothing here has been run against real
-> hardware yet. Do not flash a machine you can't recover (see
+> ⚠️ **Status: `0.1.0-untested`.** The remastered image has been boot-tested
+> end-to-end in QEMU under UEFI (auto-launch, TUI, detection, flash-tool discovery),
+> but nothing here has been run against real Mac hardware yet. Do not flash a machine you can't recover (see
 > [docs/RECOVERY.md](docs/RECOVERY.md)). This repo is private until it's tested.
 
 GopForge-Live is a TUI wizard that runs inside the
@@ -65,8 +66,9 @@ sudo ./flash-usb/write-image-linux.sh gopforge-live.img /dev/sdX --no-install
 ```
 See [docs/REMASTER.md](docs/REMASTER.md). A lighter alternative,
 `tools/build-image.sh`, writes a base image and wires autostart onto the data
-partition without remastering. (Both autostart paths are best-effort/untested; the
-write + install core is reliable.)
+partition without remastering. (The remaster auto-launch is verified in QEMU/UEFI;
+`build-image.sh`'s autostart is still best-effort/untested. Neither has been booted on
+a real Mac yet.)
 
 ## Boot the target machine
 

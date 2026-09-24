@@ -31,8 +31,11 @@ sudo ./tools/remaster-image.sh --img flash-usb/NOVEMBER_BLUES.img --out flash-us
   it into `live/`. It overlays these new files onto the running system:
   - `/opt/gopforge-live/…` — the wizard, ROM library, `vendor/gopforge`, and a
     static `bin/jq` (so matrix matching works even if the base OS lacks jq).
-  - `/etc/systemd/system/gopforge.service` (+ a `multi-user.target.wants` symlink) —
-    launches `bin/autostart.sh` on **tty1**.
+  - `/etc/systemd/system/gopforge.service` — launches `bin/autostart.sh` on **tty1**.
+    It's enabled under both `grml-boot.target` (GRML's default target;
+    `multi-user.target` stays inactive there) and `multi-user.target` (other
+    live-boot systems), and sets `TERM=linux HOME=/root` since systemd provides
+    neither.
   - a `getty@tty1` override so the wizard owns the console.
 
   The `zz-` prefix makes it sort last, so its overlay wins.
@@ -40,7 +43,9 @@ sudo ./tools/remaster-image.sh --img flash-usb/NOVEMBER_BLUES.img --out flash-us
 ## Prerequisites
 
 Root on Linux, plus `losetup`, `mksquashfs` (`squashfs-tools`), `rsync`, `blkid`,
-`mount`. `curl` is used to fetch a static `jq` for the image (optional). Prepare the
+`mount`. Growing the image (the default) also needs `sgdisk` (`gdisk`) and
+`fatresize`; a `.dmg` base needs `dmg2img`. `curl` is used to fetch a static `jq`
+for the image (optional). Prepare the
 checkout first with `fetch-vendor.sh` + `fetch-roms.sh`.
 
 ## Options
@@ -49,10 +54,19 @@ checkout first with `fetch-vendor.sh` + `fetch-roms.sh`.
 |------|---------|
 | `--img <file>` | the GRML-FLASH base image (required) |
 | `--out <file>` | output image (default `<img>-gopforge.img`) |
-| `--grow-mb N` | enlarge the output container by N MiB before adding the module (only helps if the FAT partition already has slack) |
+| `--grow-mb N` | grow the image, GPT partition 1 and its FAT filesystem by N MiB before adding the module. Default: bundle size + 80 MiB (GRML-FLASH images ship packed full). `0` skips growing |
 | `--comp gzip\|zstd\|xz` | squashfs compressor (default `gzip` for widest live-boot compatibility) |
 
-## Tuning / known-fragile points (untested on hardware)
+## Verification status
+
+Booted in QEMU with OVMF (UEFI) + KVM: the image boots, live-boot loads the
+module (`/opt/gopforge-live` present), `gopforge.service` is active, the whiptail
+TUI renders on tty1, hardware detection runs, and `amdvbflash`/`nvflash` are found
+on the GRML-FLASH medium (`flash/video/`) and staged into `/tmp/gopforge-bin`.
+**Not yet booted on a real Mac** — Mac EFI boot and the actual flash paths remain
+untested.
+
+## Tuning / known-fragile points (untested on real hardware)
 
 - **Module inclusion.** If `live/` contains a `filesystem.module`/`*.module` list,
   the script appends `zz-gopforge.squashfs` to it. If live-boot on your GRML build
@@ -60,9 +74,10 @@ checkout first with `fetch-vendor.sh` + `fetch-roms.sh`.
 - **tty1 ownership.** The systemd service uses `Conflicts=getty@tty1` +
   `StandardInput=tty`. Some builds need `systemctl disable getty@tty1` baked in
   instead; adjust the override if you get a login prompt fighting the wizard.
-- **No free space.** `mksquashfs` writes into the mounted FAT partition; if it's
-  full, either the base image has no slack (use a larger base, or the ISO path
-  below) — `--grow-mb` only helps when the partition can already hold more.
+- **No free space / FAT growth.** `mksquashfs` writes into the mounted FAT
+  partition, so the script grows it first. If `fatresize` fails, its error is
+  printed; pass `--grow-mb 0` and use `tools/build-image.sh` (or a larger base)
+  instead.
 - **Fallback.** Even if autostart doesn't fire, the files are present; boot to a
   shell and run `sudo bash /…/opt/gopforge-live/bin/gopwizard.sh`.
 
