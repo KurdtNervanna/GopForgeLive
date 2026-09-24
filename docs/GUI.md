@@ -11,7 +11,7 @@ screens instead of menus.
 | **Overview** | This Mac (drawn Mac Pro / iMac), what the disk can do for it, and the status of every tool. |
 | **Boot ROM** *(Mac Pro 4,1 / 5,1)* | Back Up → Inspect → Patch → Flash → Finish. Adds EnableGop to the Boot ROM. |
 | **Graphics Card** *(iMac 2009–2011)* | Card → Firmware → Back Up → Flash → Finish. Recommends GOP firmware for your exact card and display. |
-| **Backups** | Every firmware image saved to the USB. |
+| **Backups** | Every firmware image saved to the USB, with **Restore** for original Boot ROM and graphics-firmware backups. |
 | **ROM Library** | The full IMAC-EFI-BOOT-SCREEN collection, searchable. |
 | **Activity** | The session log (also saved to the USB). |
 
@@ -31,8 +31,9 @@ Every write is re-checked by `bin/gfl-api` no matter what the app sends:
 - Boot ROM images must be 4 MB with the Mac Pro fingerprint and exactly one EnableGop,
 - a patched Boot ROM may differ from your backup **only inside the DXE volume** — NVRAM,
   serial/board data, microcode and the boot block must be byte-identical,
-- flashing requires typing `FLASH` / `FLASH BOOTROM`, and the button only arms after
-  three seconds.
+- right before a Boot ROM write the chip is re-read and must still equal the backup,
+- flashing requires typing `FLASH` / `FLASH BOOTROM` (restoring: `RESTORE` /
+  `RESTORE BOOTROM`), and the button only arms after three seconds.
 
 While firmware is being written a full-screen panel blocks the app and reminds you not
 to turn the Mac off.
@@ -80,4 +81,8 @@ dev/run-gui-dev.sh MacPro5,1 vega64      # then open http://localhost:8765/
 dev/run-gui-dev.sh iMac10,1 wx4150        # the "which iMac?" + shared-ID card flow
 dev/run-gui-dev.sh PC none                # unsupported machine
 GFL_MOCK_FAIL=write dev/run-gui-dev.sh    # make the Boot ROM write fail
+GFL_MOCK_DRIFT=1 dev/run-gui-dev.sh       # NVRAM changes between reads → stale-backup path
 ```
+
+The simulated chip remembers writes (`dev/mock/usb/.mock-chip.rom`), so flash → restore
+round-trips behave like the real thing.

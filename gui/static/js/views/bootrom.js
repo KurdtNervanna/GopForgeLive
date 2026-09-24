@@ -5,8 +5,17 @@ import { chipArt, successArt } from "../art.js";
 import { S, actions, update, runJob, openSheet, toast, jobRunning, refreshStatus } from "../core.js";
 import { section, callout, checkRow, steps, fileCard, jobBlock, locked } from "../components.js";
 import { macInfo } from "../macs.js";
+import { api } from "../api.js";
 
 export const title = "Boot ROM";
+
+// Saved Boot ROM backups, so the flow can continue from one after a restart.
+export async function enter() {
+  const b = await api.get("/api/backups");
+  if (b.ok) update({ backups: b });
+}
+const savedDumps = () => (S.backups?.files || []).filter((f) => f.kind === "bootrom");
+const freshBr = () => ({ dump: null, facts: null, report: "", checked: false, variant: "standard", patched: null, pfacts: null, written: false, error: null, stale: false });
 const STEPS = [
   { id: "backup", label: "Back Up" }, { id: "inspect", label: "Inspect" },
   { id: "patch", label: "Patch" }, { id: "flash", label: "Flash" }, { id: "finish", label: "Finish" },
@@ -32,6 +41,7 @@ async function doDump() {
     Object.assign(S.br, { dump: job.result.dump, facts: job.result.facts });
     toast("ok", "Boot ROM backed up", `${job.result.dump.name} saved to the USB.`);
     update();
+    enter();
     doCheck();
   } else if (job) {
     toast("bad", "Couldn’t read the Boot ROM", job.result?.error || "See the details.");
@@ -74,6 +84,11 @@ function askFlash() {
       if (job?.state === "done") {
         S.br.written = true;
         toast("ok", "Boot ROM updated", "EnableGop is installed. Shut down to finish.", 9000);
+      } else if (job && ["stale_backup", "read_failed"].includes(job.result?.code)) {
+        // refused before anything was written
+        S.br.stale = job.result.code === "stale_backup";
+        S.br.error = null;
+        toast("warn", "Nothing was written", job.result.error, 12000);
       } else if (job) {
         S.br.error = job.result?.error || "The write did not complete.";
         toast("bad", "Flashing failed", S.br.error, 12000);
@@ -91,8 +106,22 @@ Object.assign(actions, {
   "br-flash": askFlash,
   "br-reset": () => {
     if (jobRunning()) return;
-    S.br = { dump: null, facts: null, report: "", checked: false, variant: "standard", patched: null, pfacts: null, written: false, error: null };
+    S.br = freshBr();
     update();
+  },
+  "br-redo": () => {             // stale backup: start over with a fresh read
+    if (jobRunning()) return;
+    S.br = freshBr();
+    update();
+    doDump();
+  },
+  "br-use": (el) => {
+    if (jobRunning()) return;
+    const f = savedDumps().find((x) => x.path === el.dataset.path);
+    if (!f) return;
+    S.br = { ...freshBr(), dump: f };
+    update();
+    doCheck();
   },
   "br-refresh": async () => { await refreshStatus(); toast("info", "Status refreshed"); },
 });
@@ -139,6 +168,12 @@ function viewBackup() {
     <div class="btn-row">
       <button class="btn primary large" data-act="br-dump" ${jobRunning() ? "disabled" : ""}>${icon("download")} ${j && j.state !== "done" ? "Try Again" : "Back Up Boot ROM"}</button>
     </div>
+    ${when(savedDumps().length, () => section("Or continue with a saved backup", html`<div class="group">
+      ${savedDumps().slice(0, 4).map((f) => html`<div class="row">${sq("archive", "blue")}
+        <div class="main-col"><div class="title select-text" style="word-break:break-all">${f.name}</div>
+          <div class="subtitle">${f.modified || ""} · <span class="mono">${shortHash(f.sha256)}</span></div></div>
+        <button class="btn" data-act="br-use" data-path="${f.path}" ${jobRunning() ? "disabled" : ""}>Use</button></div>`)}
+    </div>`, "Handy after a restart. Before anything is flashed, the chip is re-read — if it changed since this backup, you’ll be asked to back up again."))}
   </div>`;
 }
 
@@ -212,7 +247,13 @@ function viewFlash() {
       ${checkRow(p.size === b.facts.size ? "ok" : "bad", "Same size as your original", fmtExact(p.size))}
       ${checkRow(p.enablegop_count === 1 ? "ok" : "bad", "EnableGop installed exactly once", b.variant === "direct" ? "Direct variant" : "Standard variant")}
       ${checkRow(p.cmp_fingerprint ? "ok" : "bad", "Mac Pro firmware structure intact")}
+      ${checkRow("ok", "NVRAM, serial number and boot block untouched", "Only the DXE driver volume differs from your backup")}
+      ${checkRow("info", "Your Boot ROM is re-read first", "Nothing is written unless the chip still matches your backup")}
     </div>
+    ${when(b.stale, () => html`<div style="margin-top:var(--s5)">${callout("warn", "Your Boot ROM changed since this backup",
+      html`The firmware updates its NVRAM as the Mac runs, so this patched image is out of date. Nothing was written.
+      Take a fresh backup and patch again — it only takes a minute.`)}
+      <div class="btn-row"><button class="btn primary" data-act="br-redo" ${jobRunning() ? "disabled" : ""}>${icon("download")} Back Up Again</button></div></div>`)}
     ${section("What will be written", html`<div class="group">
       <div class="row">${sq("chip", "orange")}<div class="main-col"><div class="title">Target</div><div class="subtitle">Boot ROM · ${S.status.machine.model}</div></div></div>
       <div class="row">${sq("layers", "green")}<div class="main-col"><div class="title">New image</div><div class="subtitle">${b.patched.name} · <span class="mono">${shortHash(b.patched.sha256)}</span></div></div></div>
@@ -222,11 +263,12 @@ function viewFlash() {
       html`If power is lost during the write the Mac may not start. Recovery then needs an SPI programmer (such as a CH341A) and the backup on this USB. See <span class="mono">docs/RECOVERY.md</span>.`)}</div>
     ${jobBlock(j, { running: "Writing…", done: "Boot ROM written and verified", failed: "The write did not complete" })}
     ${when(b.error, () => html`<div style="margin-top:var(--s4)">${callout("danger", "Don’t turn off your Mac yet",
-      html`${b.error} The Boot ROM may be unchanged or partially written. Open Activity for details. You can retry the flash, or restore your backup from a shell with <span class="mono">flashrom -p internal -w ${b.dump.name}</span>.`)}</div>`)}
+      html`${b.error} The Boot ROM may be unchanged or partially written. Open Activity for details, then retry the flash —
+      or put your original back from <strong>Backups › Restore</strong>. Keep the Mac powered on until one of them succeeds.`)}</div>`)}
     <div class="btn-row">
       <button class="btn" data-act="br-reset" ${jobRunning() ? "disabled" : ""}>Start Over</button>
       <span class="grow"></span>
-      <button class="btn destructive large" data-act="br-flash" ${jobRunning() ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
+      <button class="btn destructive large" data-act="br-flash" ${jobRunning() || b.stale ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
     </div>
   </div>`;
 }
@@ -245,9 +287,11 @@ function viewFinish() {
       ${tip(2, "Hold ⌥ Option while powering on", "The native startup picker should appear on your graphics card.")}
       ${tip(3, "Black until the picker is normal", "On non-Apple GPUs a plain boot may not draw the grey logo — the picker is the test.")}
       ${tip(4, "No picker at all?", "Try the Direct variant, or your card may also need GOP in its own firmware.")}
-    </div>`, "Your original Boot ROM stays on this USB in gopforge-live › firmware › Backups.")}
+      ${tip(5, "Want the original back?", "Boot this USB again and use Backups › Restore on your Boot ROM backup.")}
+    </div>`, "Your original Boot ROM stays on this USB in gopforge-live › firmware › Backups — copy it somewhere safe too.")}
     <div class="btn-row">
       <button class="btn" data-act="go" data-to="backups">${icon("archive")} View Backups</button>
+      <button class="btn" data-act="br-reset">Start Over</button>
       <span class="grow"></span>
       <button class="btn primary large" data-act="system" data-do="poweroff">${icon("power")} Shut Down</button>
     </div>

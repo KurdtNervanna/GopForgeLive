@@ -15,6 +15,8 @@
 #   - a verified backup taken on this USB before any GPU flash,
 #   - hard blocks for ROM methods the model forbids (EG2 on iMac10,1 A1312…),
 #   - 4 MiB / fingerprint / EnableGop checks before a BootROM write,
+#   - patched BootROMs may differ from the backup only inside the DXE volume, and
+#     the chip is re-read before writing to prove it still matches that backup,
 #   - an exact typed confirmation phrase (GFL_CONFIRM).
 #
 # SPDX-License-Identifier: MIT
@@ -343,8 +345,69 @@ cmd_write_bootrom() { # patched original_dump
       || refuse invalid_image "the patched image differs from the backup outside the DXE volume (NVRAM / boot block) — refusing to write it"
   fi
   _log API "write-bootrom patched=$p backup=$d expert=$GFL_EXPERT"
+  local rc=0; bootrom_chip_matches "$d" || rc=$?
+  case "$rc" in
+    0) : ;;
+    1) refuse stale_backup "the Boot ROM has changed since this backup was taken (the firmware writes NVRAM), so the patched image is out of date. Nothing was written — back up again and re-patch." ;;
+    *) fail read_failed "re-reading the Boot ROM before writing failed — nothing was written; see the log" ;;
+  esac
   bootrom_write "$p" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
   emit --arg p "$p" --arg d "$d" '{ok:true, written:$p, backup:$d}'
+}
+
+# Put an original BootROM backup back. Normally only when the chip is this backup
+# plus changes inside the DXE volume (i.e. this Mac, patched since); otherwise the
+# backup is stale or from another Mac and only Expert Mode may write it.
+cmd_restore_bootrom() { # backup
+  need backup "${1:-}"
+  local b="$1"
+  allow_bootrom || refuse gated "BootROM work is only offered on Mac Pro 4,1/5,1"
+  [ "${GFL_CONFIRM:-}" = "RESTORE BOOTROM" ] || refuse unconfirmed "type RESTORE BOOTROM to confirm"
+  in_workdir "$b" || refuse no_backup "the backup must be on this USB"
+  case "$b" in */firmware/Backups/*.rom) : ;; *) refuse bad_file "not a Boot ROM backup: $(basename "$b")" ;; esac
+  case "$(basename "$b")" in *-enablegop.rom) refuse bad_file "that is a patched image, not an original backup" ;; esac
+  local fb; fb="$(bootrom_facts "$b")"
+  if ! truthy "$GFL_EXPERT"; then
+    jq -e '.is_4mib and .cmp_fingerprint' <<<"$fb" >/dev/null \
+      || refuse invalid_image "this backup is not a complete Mac Pro 4,1/5,1 Boot ROM"
+  fi
+  local cur; cur="$(bootrom_read_tmp)" || fail read_failed "reading the Boot ROM failed — nothing was written; see the log"
+  if cmp -s "$cur" "$b"; then
+    rm -f "$cur"; ok "the Boot ROM already matches this backup — nothing to do"
+    emit --arg b "$b" '{ok:true, restored:$b, unchanged:true}'; return
+  fi
+  if ! bootrom_changes_confined "$b" "$cur" >/dev/null; then
+    rm -f "$cur"
+    truthy "$GFL_EXPERT" || refuse not_this_state "the chip differs from this backup outside the DXE volume (NVRAM / serial / boot block) — it is older than the chip's current state or from another Mac. Expert Mode can override."
+    warn "Expert Mode: restoring a backup that differs outside the DXE volume"
+  fi
+  rm -f "$cur"
+  _log API "restore-bootrom backup=$b expert=$GFL_EXPERT"
+  bootrom_write "$b" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
+  emit --arg b "$b" '{ok:true, restored:$b, unchanged:false}'
+}
+
+# Flash a graphics-firmware backup back onto the adapter it came from.
+cmd_restore_gpu() { # amd|nvidia index backup
+  need vendor "${1:-}"; need index "${2:-}"; need backup "${3:-}"
+  local vendor="$1" idx="$2" b="$3"
+  allow_gpu || refuse gated "GPU vBIOS work is not offered on this machine (enable Expert mode to override)"
+  [ "${GFL_CONFIRM:-}" = "RESTORE" ] || refuse unconfirmed "type RESTORE to confirm"
+  in_workdir "$b" || refuse no_backup "the backup must be on this USB"
+  [ "$(file_size "$b")" -gt 0 ] || refuse bad_file "the backup file is empty"
+  case "$vendor:$b" in
+    amd:*/video/Backups/amd-adapter"$idx"-*.rom|nvidia:*/video/Backups/nvidia-idx"$idx"-*.rom) : ;;
+    *) refuse backup_mismatch "that backup was not taken from $vendor adapter $idx" ;;
+  esac
+  _log API "restore-gpu $vendor adapter=$idx backup=$b"
+  local rc=0
+  case "$vendor" in
+    amd)    amd_flash "$idx" "$b" no || rc=$? ;;
+    nvidia) nv_flash "$idx" "$b"     || rc=$? ;;
+    *)      fail usage "vendor must be amd or nvidia" 64 ;;
+  esac
+  [ $rc -eq 0 ] || fail flash_failed "the flasher reported an error (exit $rc) — the backup is still on the USB"
+  emit --arg b "$b" --arg v "$vendor" --arg i "$idx" '{ok:true, restored:$b, vendor:$v, index:($i|tonumber)}'
 }
 
 cmd_backups() {
@@ -388,6 +451,8 @@ main() {
     check-bootrom)   cmd_check_bootrom "$@" ;;
     inject-bootrom)  cmd_inject_bootrom "$@" ;;
     write-bootrom)   cmd_write_bootrom "$@" ;;
+    restore-bootrom) cmd_restore_bootrom "$@" ;;
+    restore-gpu)     cmd_restore_gpu "$@" ;;
     backups)         cmd_backups ;;
     log)             cmd_log "$@" ;;
     *)               fail usage "unknown command: $c" 64 ;;

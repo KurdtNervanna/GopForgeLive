@@ -6,10 +6,14 @@
 #   GFL_MOCK_FAIL   dump | write | backup | flash   → make that step fail
 #   GFL_MOCK_PATCHED=1  the simulated BootROM already contains EnableGop
 #   GFL_MOCK_FAST=1     skip the realistic delays
+#   GFL_MOCK_DRIFT=1    every Boot ROM read changes one NVRAM byte (stale-backup test)
+#   GFL_MOCK_CHIP       file holding the simulated chip (writes persist; default
+#                       $GFL_MEDIUM/.mock-chip.rom, else /tmp)
 # Usage (via the wrapper scripts in dev/mock/bin): mockhw.sh <tool> [args…]
 set -u
 tool="$1"; shift
 nap() { [ "${GFL_MOCK_FAST:-0}" = 1 ] || sleep "$1"; }
+CHIP="${GFL_MOCK_CHIP:-${GFL_MEDIUM:-/tmp}/.mock-chip.rom}"
 fail_on() { case ",${GFL_MOCK_FAIL:-}," in *",$1,"*) return 0;; esac; return 1; }
 
 gpu_line() { # profile -> "bdf|lspci -Dnn text (no bdf)|subsys|amd-product|kind"
@@ -66,11 +70,17 @@ case "$tool" in
     if [ "$mode" = r ]; then
       echo "Reading flash..."; nap 3
       fail_on dump && { echo "Transaction error!"; echo "Read operation failed!"; exit 1; }
-      make_bootrom "$file"; echo "done."
+      if [ -f "$CHIP" ]; then cp "$CHIP" "$file"; else make_bootrom "$file"; fi
+      if [ "${GFL_MOCK_DRIFT:-0}" = 1 ]; then    # NVRAM moves on between reads
+        n=$(( $(cat "$CHIP.drift" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$CHIP.drift"
+        printf "\x$(printf %02x $(( n % 256 )))" | dd of="$file" bs=1 seek=$((0x120100)) conv=notrunc status=none
+      fi
+      echo "done."
     elif [ "$mode" = w ]; then
       echo "Reading old flash chip contents... done."; nap 1.5
       echo "Erasing and writing flash chip..."; nap 5
       fail_on write && { echo "Transaction error!"; echo "FAILED at 0x001a0000! Expected=0x9f, Found=0xff"; exit 1; }
+      cp "$file" "$CHIP"
       echo "Erase/write done."; echo "Verifying flash..."; nap 2; echo "VERIFIED."
     fi ;;
 

@@ -1,52 +1,60 @@
 # Installing GopForge-Live
 
-Two paths. Start with **A** (fast to iterate and test); **B** is the eventual
-polished image.
+There are two ways to get GopForge-Live onto a USB stick:
 
-## A. Drop onto an existing GRML-FLASH USB (recommended for now)
+- **Option A: the all-in-one image (recommended).** The stick boots straight into the app.
+- **Option B: add it to a GRML-FLASH USB you already have.** You start it yourself
+  from a shell.
 
-1. Build a GRML-FLASH USB normally: restore the latest
-   [GRML-FLASH release](https://github.com/Ausdauersportler/GRML-FLASH/releases)
-   `.img` to a USB/SD with Balena Etcher. It already bundles `flashrom`,
-   `amdvbflash`, `nvflash`, `UEFIPatch`, and the EnableGop GCN4 vBIOS set.
-2. On a networked machine, populate the vendored tools and the ROM library:
-   ```bash
-   ./tools/fetch-vendor.sh   # clones GopForge + pre-caches EnableGop.ffs
-   ./tools/fetch-roms.sh     # pulls the whole IMAC-EFI-BOOT-SCREEN vBIOS set
-   ```
-   `fetch-roms.sh` downloads every ROM from
-   [Ausdauersportler/IMAC-EFI-BOOT-SCREEN](https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN)
-   (GPL-3.0), unzips the packed ones into `roms/<METHOD>/`, and generates
-   `roms/index.json` by reading each vBIOS's PCI device id. These GPL blobs stay
-   under `roms/` (fetched, never committed to this MIT repo).
-3. The wizard recommends from `catalog/imac-boot-screen-matrix.json`, which encodes
-   the upstream model/panel/memory rules. It only ever offers ROMs that are actually
-   present under `roms/`.
-4. Mount the USB's data/persistence partition and install:
+## A. The all-in-one image
+
+### Write a ready-made image
+
+If you already have `gopforge-live.img` (for example `flash-usb/gopforge-live.img`):
+
+1. Write it to a USB stick of 2 GB or more with [balenaEtcher](https://etcher.balena.io/)
+   (Windows / macOS / Linux), or use `flash-usb/write-image-*.sh` / `.ps1`. This
+   erases the stick. If Windows then offers to format the disk, choose **Cancel**.
+2. On the Mac, hold **⌥ Option** at power-on and pick **EFI Boot**.
+3. The app appears after a short countdown. See [TESTING.md](TESTING.md) for your first run.
+
+### Build the image yourself (Linux or WSL, as root)
+
+```bash
+./tools/fetch-vendor.sh                      # GopForge + EnableGop.ffs / EnableGopDirect.ffs
+./tools/fetch-roms.sh                        # IMAC-EFI-BOOT-SCREEN vBIOS library (GPL-3.0)
+sudo ./tools/dxeinject-linux/build.sh        # Linux DXEInject for Boot ROM patching
+./flash-usb/get-base-image.sh                # GRML-FLASH base image
+sudo ./tools/remaster-image.sh --img <grml-flash.img> --out gopforge-live.img
+```
+
+`remaster-image.sh` adds one extra squashfs module to the base image. The module
+contains the app, the ROM library, the Linux injector, a static `jq`, and an
+auto-start service. It also adds `iomem=relaxed` (flashrom needs it) and a US
+keyboard layout to the boot entries. See [REMASTER.md](REMASTER.md).
+
+## B. Add it to an existing GRML-FLASH USB
+
+1. Write the latest
+   [GRML-FLASH release](https://github.com/Ausdauersportler/GRML-FLASH/releases) to a USB
+   stick. It already includes `flashrom`, `amdvbflash` and `nvflash`.
+2. Run the `fetch-*` steps and `dxeinject-linux/build.sh` from above, then:
    ```bash
    ./tools/install-to-usb.sh /path/to/mounted/usb
    ```
-5. Boot the target Mac from the USB, then in the GRML shell:
+3. Boot the Mac from the stick, then in the GRML shell:
    ```bash
-   cd <data-partition>/gopforge-live
-   sudo bash bin/gopwizard.sh
+   cd <data-partition>/gopforge-live && sudo bash bin/gopwizard.sh
    ```
-   Headless (dead GPU): SSH in as root (GRML-FLASH default password `flash`) and
-   run the same command.
+   This path gives you the text wizard. The graphical app auto-starts only on the
+   all-in-one image. If the Mac has no working display, SSH in as `root` (GRML-FLASH
+   password `flash`) and run the same command.
 
-## B. Bake it into a custom image (later)
+## What the live system needs
 
-`tools/build-image.sh` is a stub for a `grml2usb` remaster that auto-launches the
-wizard on login. Manual outline until it's done:
+- **Base tools:** `bash`, `perl`, `awk`, `pciutils`, `dmidecode`, `flashrom`, `whiptail`.
+- **Graphical app:** Xorg, `xinit`, `python3`, `firefox-esr`.
 
-1. Restore the GRML-FLASH `.img`, mount persistence, run `install-to-usb.sh`.
-2. Add an autostart line (e.g. append to the live user's `~/.zlogin`):
-   `sudo bash /path/gopforge-live/bin/gopwizard.sh`
-3. Rebuild with `grml2usb` per the GRML-FLASH README to persist it.
-
-## Dependencies expected in the live environment
-
-`bash`, `whiptail` (falls back to plain prompts), `pciutils` (`lspci`),
-`dmidecode`, `flashrom`, `perl`, `awk`, `jq` (for catalog matching), and the
-vendor-supplied `gopforge.sh`. GRML ships most of these; `jq`/`whiptail` may need
-`apt-get install` in a networked live session if absent.
+GRML-FLASH ships all of these. The image also brings its own `jq`, plus the Linux
+injector with its Qt libraries. When the app can't start, it falls back to the text
+wizard, and `whiptail` falls back to plain numbered prompts.

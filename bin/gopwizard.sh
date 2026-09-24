@@ -240,6 +240,15 @@ direct   = GPUs needing DirectGopRendering (e.g. some Vega)." \
   confirm_write "Mac BootROM" "${GFL_MAC_MODEL:-BootROM} ($GFL_FLASHROM_PROG)" \
     "backup: $dump\npatched: $patched" yes || { ui_msg "Cancelled" "Backup kept at $dump."; return 0; }
 
+  local rc=0; bootrom_chip_matches "$dump" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    ui_msg "Not written" \
+"$( [ "$rc" -eq 1 ] && echo "The Boot ROM changed since the backup was taken (NVRAM is written by the
+firmware), so the patched image is out of date. Nothing was written —
+run this again to take a fresh backup and patch." || echo "Re-reading the Boot ROM failed, so nothing was written. See $GFL_LOG." )"
+    return 0
+  fi
+
   if bootrom_write "$patched"; then
     ui_msg "Done" \
 "BootROM written. Power OFF fully (not just reboot).

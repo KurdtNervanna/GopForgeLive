@@ -2,7 +2,7 @@
 # bootstrap.sh — shared startup for the text wizard (gopwizard.sh) and the GUI
 # backend API (gfl-api). The caller must set GFL_BIN (its own directory) first.
 
-GFL_VERSION="0.2.0-untested"
+GFL_VERSION="0.3.0-untested"
 GFL_ROOT="$(cd -- "$GFL_BIN/.." && pwd)"
 GFL_LIB="$GFL_BIN/lib"
 

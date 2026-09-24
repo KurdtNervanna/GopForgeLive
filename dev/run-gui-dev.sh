@@ -17,6 +17,7 @@ chmod +x "$HERE"/dev/mock/bin/* "$HERE"/bin/gfl-api 2>/dev/null || true
 export PATH="$HERE/dev/mock/bin:$PATH"
 export GFL_MEDIUM="$HERE/dev/mock/usb"              # stands in for the USB stick
 mkdir -p "$GFL_MEDIUM/flash/video"
+rm -f "$GFL_MEDIUM"/.mock-chip.rom*                 # each session starts with a factory chip
 export GFL_AMDVBFLASH="$HERE/dev/mock/bin/amdvbflash" GFL_NVFLASH="$HERE/dev/mock/bin/nvflash_linux"
 if ! command -v jq >/dev/null 2>&1; then
   mkdir -p "$HERE/dev/.cache"

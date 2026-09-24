@@ -1,42 +1,58 @@
-# Recovery — when a flash goes wrong
+# Recovery: when a flash goes wrong
 
-**Read this before you flash anything.** Both targets this tool writes to are
-brickable. Have a recovery path ready *first*.
+**Read this before you flash anything.** Both kinds of chip this tool writes to can be
+bricked, so have a way back ready *first*.
 
-## GPU vBIOS (amdvbflash / nvflash)
+## Built into the app
 
-- **Backup exists**: the wizard saves the original to
-  `…/gopforge-live/video/Backups/` and verifies it before flashing. Keep it.
-- **Bad flash, no display**: put the card in another PC (or use the Mac's iGPU /
-  a second GPU), boot GRML-FLASH again, and re-flash the backup:
+- **Backups come first.** Nothing is flashed until a backup of that exact chip or card
+  is saved to the USB and checked. The backups live in
+  `gopforge-live/firmware/Backups/` (Boot ROM) and `gopforge-live/video/Backups/`
+  (graphics firmware). **Copy them off the USB as well.**
+- **Backups › Restore** writes a backup back:
+  - **Boot ROM:** you type `RESTORE BOOTROM`. The chip is read first. Normally the
+    restore is only allowed if the chip matches the backup everywhere outside the DXE
+    driver volume, meaning it's the same Mac with a patch added since. An older backup,
+    or one from another Mac, would roll back NVRAM or change the serial, so it needs
+    Expert Mode.
+  - **Graphics firmware:** you type `RESTORE`. The backup can only go back onto the
+    card it was read from.
+- **Stale-backup check.** Just before a Boot ROM write, the chip is read again and must
+  still match your backup byte for byte. If it changed (the firmware writes NVRAM),
+  nothing is written, and you're asked to back up and patch again.
+
+## Graphics firmware (amdvbflash / nvflash)
+
+- **Bad flash, but the Mac still boots:** boot this USB and use **Backups › Restore**.
+  If the internal display is dark, use an external display, or run the command below
+  over SSH.
+- **No display at all:** put the card in another computer (or use a second GPU), boot
+  GRML-FLASH, and flash the backup back:
   - AMD: `amdvbflash -f -p <idx> backup.rom`
   - NVIDIA: `nvflash -i<idx> --protectoff && nvflash -i<idx> -6 backup.rom`
-- **Dual-BIOS cards**: flip the BIOS switch to the good position to boot, then
-  flash the bad one.
-- **Hardware fallback**: a CH341A SPI programmer with a clip can rewrite the
-  GPU's SPI EEPROM directly if the card won't POST at all.
+- **Dual-BIOS cards:** flip the switch to the good BIOS to boot, then flash the bad one.
+- **Card won't POST at all:** a CH341A SPI programmer with a clip can rewrite the card's
+  EEPROM directly.
 
-## Mac BootROM (flashrom)
+## Mac Boot ROM (flashrom)
 
-This is the higher-stakes target.
+This is the riskier of the two.
 
-- **Backup exists**: the wizard dumps and verifies the original before writing.
-  It lives in `…/gopforge-live/firmware/Backups/`. **Copy it off the USB too.**
-- **Write failed / interrupted**: do **not** power-cycle mid-write if a re-flash
-  can still run. Re-run `flashrom -w backup.rom` to restore the original.
-- **Apple SPI lock**: some Macs refuse an in-system write (protected ranges /
-  descriptor lock) even though the read worked. If `flashrom -w` fails cleanly
-  and the machine still boots, the BootROM is likely unchanged — the write just
-  didn't take. Investigate flashrom's log before retrying.
-- **Machine won't boot (bricked)**: recover the SPI flash out-of-band with a
-  **CH341A** programmer (in-circuit clip or desoldered chip) and write back the
-  saved dump. For classic Mac Pro 4,1/5,1 this is the same physical chip a
-  "Matt card" / hardware programmer targets. This is why GopForge's docs insist
-  on a hardware recovery path before flashing the BootROM.
+- **The write failed or was interrupted:** **don't power off** while you still have a
+  running system. Retry the flash, or use **Backups › Restore**. From a shell, the same
+  thing is `flashrom -p internal -w <backup.rom>`.
+- **Apple SPI lock:** some Macs refuse an in-system write even though the read worked.
+  If `flashrom -w` fails cleanly and the Mac still boots, the Boot ROM is most likely
+  unchanged. Read the log under **Activity** before retrying.
+- **Boots, but no boot screen:** EnableGop is harmless when it isn't working. Try the
+  Direct variant (restore, then patch with Direct), or give the GPU GOP firmware.
+- **The Mac won't start (bricked):** reprogram the SPI flash from outside with a
+  **CH341A** programmer (clip in-circuit, or desolder the chip) and write back your saved
+  backup. That's why a hardware recovery path should exist before you flash the Boot ROM.
 
 ## General
 
-- Prefer flashing with the machine on stable power (UPS / no risk of power loss).
-- Never delete the `Backups/` folder until the new firmware is confirmed good.
-- If unsure, stop and ask on the relevant MacRumors thread (EnableGop / iMac GPU
-  upgrade) before writing.
+- Flash only on stable power (a UPS if you have one).
+- Keep the `Backups/` folders until the new firmware has proven itself.
+- When unsure, ask in the relevant MacRumors thread (EnableGop / iMac GPU upgrade) before
+  writing anything.

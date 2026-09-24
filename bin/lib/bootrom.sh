@@ -109,6 +109,28 @@ bootrom_inject() { # dump variant
   echo "$out"
 }
 
+# Read the chip into a temp file (not a backup). Echoes the path.
+bootrom_read_tmp() {
+  local tmp; tmp="$(mktemp /tmp/gfl-chip-XXXXXX.rom)"
+  if ! _run_logged flashrom --programmer "$GFL_FLASHROM_PROG" -r "$tmp"; then
+    rm -f "$tmp"; err "flashrom read failed — see $GFL_LOG"; return 1
+  fi
+  echo "$tmp"
+}
+
+# Is the chip still byte-identical to <backup>? A patched image is built from that
+# backup, so if the chip changed since (the firmware and OSes write NVRAM), writing
+# the image would roll those changes back. 0 = matches, 1 = changed, 2 = read failed.
+bootrom_chip_matches() { # backup
+  local cur
+  info "re-reading the Boot ROM to confirm it still matches $(basename "$1") …"
+  cur="$(bootrom_read_tmp)" || return 2
+  if cmp -s "$cur" "$1"; then
+    rm -f "$cur"; ok "the chip still matches your backup"; return 0
+  fi
+  rm -f "$cur"; err "the Boot ROM has changed since $(basename "$1") was taken"; return 1
+}
+
 # Write a patched BootROM back with flashrom, then verify.
 bootrom_write() { # patched_rom
   local rom="$1"

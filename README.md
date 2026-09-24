@@ -2,12 +2,12 @@
 
 **An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
 
-> ⚠️ **Status: `0.2.0-untested`.** Boots and runs end-to-end in QEMU (UEFI) and has
-> reached the wizard on a real Mac Pro, but no firmware has been flashed on real
-> hardware yet. Do not flash a machine you can't recover (see
+> ⚠️ **Status: `0.3.0-untested`.** Boots and runs end-to-end in QEMU (UEFI), patches
+> Apple's MP51.fd correctly, and has reached the app on a real Mac Pro — but no
+> firmware has been flashed on real hardware yet ([docs/TESTING.md](docs/TESTING.md)). Do not flash a machine you can't recover (see
 > [docs/RECOVERY.md](docs/RECOVERY.md)). This repo is private until it's tested.
 
-GopForge-Live is a TUI wizard that runs inside the
+GopForge-Live is a guided app (with a text-mode fallback) that runs inside the
 [GRML-FLASH](https://github.com/Ausdauersportler/GRML-FLASH) live environment and
 automates the whole path to a native pre-boot picker on an old Mac with a modern
 GPU:
@@ -48,7 +48,7 @@ gui/                    # graphical app: server.py, session.sh, static/ SPA, fir
 dev/                    # run-gui-dev.sh + mock hardware for developing off-Mac
 bin/lib/                # ui, detect, library, vbios, bootrom, safety
 catalog/                # imac-boot-screen-matrix.json + SCHEMA.md (model/panel/memory rules)
-docs/                   # WORKFLOW / INSTALL / RECOVERY
+docs/                   # INSTALL / TESTING / WORKFLOW / RECOVERY / GUI / REMASTER
 tools/                  # fetch-vendor, fetch-roms, dxeinject-linux, install-to-usb, remaster-image
 flash-usb/              # Windows/macOS/Linux USB writers + base-image fetcher
 vendor/gopforge/        # populated by tools/fetch-vendor.sh (not committed)
@@ -80,10 +80,9 @@ live-boot squashfs module — the base image's Mac/PC boot is left untouched):
 sudo ./tools/remaster-image.sh --img grml-flash.img --out gopforge-live.img
 sudo ./flash-usb/write-image-linux.sh gopforge-live.img /dev/sdX --no-install
 ```
-See [docs/REMASTER.md](docs/REMASTER.md). A lighter alternative,
-`tools/build-image.sh`, writes a base image and wires autostart onto the data
-partition without remastering. (Both autostart paths are best-effort/untested; the
-write + install core is reliable.)
+See [docs/REMASTER.md](docs/REMASTER.md). This is the recommended path: its auto-launch
+is verified in QEMU (UEFI) and on a real Mac Pro. (`tools/build-image.sh`, which wires
+autostart onto the data partition without remastering, is older and untested.)
 
 ## Boot the target machine
 
@@ -104,7 +103,8 @@ See [docs/INSTALL.md](docs/INSTALL.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md).
 - The wizard is **machine-gated**: it will not offer a path that doesn't apply to
   the detected machine (an unsupported machine gets nothing unless you knowingly
   enable the Expert override).
-- Every hardware write is preceded by a **verified backup** (size + sha256).
+- Every hardware write is preceded by a **verified backup** (size + sha256), and
+  **Backups › Restore** puts any of them back from inside the app.
 - GPU ROMs are recommended from the **iMac boot-screen matrix**, which detects your
   iMac model + GPU and marks each candidate **✓ suitable / ⚠ caution / ✗ won't work**
   (Polaris has no LVDS; iMac9,1 needs EnableGop91; memory-vendor ROMs must match your
@@ -115,6 +115,7 @@ See [docs/INSTALL.md](docs/INSTALL.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md).
   patch anything that isn't a MacPro4,1/5,1 image. A patched BootROM may differ from
   the backup **only inside the DXE volume** — NVRAM, serial/board data, microcode and
   the boot block must be byte-identical, or it is discarded / refused for writing.
+  The chip is re-read right before the write and must still equal that backup.
 - Read [docs/RECOVERY.md](docs/RECOVERY.md) and keep a CH341A handy for the
   BootROM path.
 

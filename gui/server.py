@@ -45,6 +45,8 @@ ACTIONS: dict[str, dict] = {
     "check-bootrom":  {"args": ["dump"], "hw": False},
     "inject-bootrom": {"args": ["dump", "variant"], "hw": False},
     "write-bootrom":  {"args": ["patched", "dump"], "hw": True, "confirm": "FLASH BOOTROM"},
+    "restore-bootrom": {"args": ["backup"], "hw": True, "confirm": "RESTORE BOOTROM"},
+    "restore-gpu":    {"args": ["vendor", "index", "backup"], "hw": True, "confirm": "RESTORE"},
 }
 EXPERT_PHRASE = "I UNDERSTAND"
 

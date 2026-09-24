@@ -20,8 +20,10 @@ Expert override can unlock both, at your own risk).
   │ detect card+model  │                        │ dump ROM (flashrom -r)    │
   │ → matrix match     │                        │ → GopForge --check (ID)   │
   │   (✓/⚠/✗ per model)│                        │ → GopForge --inject       │
-  │ → backup vBIOS     │                        │                           │
-  │ → flash GOP vBIOS  │                        │ → flashrom -w (write back)│
+  │ → backup vBIOS     │                        │   (Linux DXEInject)       │
+  │ → flash GOP vBIOS  │                        │ → changes-confined check  │
+  │                    │                        │ → re-read chip = backup?  │
+  │                    │                        │ → flashrom -w (write back)│
   └────────────────────┘                        └───────────────────────────┘
 ```
 
@@ -61,3 +63,10 @@ failure.
 - The BootROM write requires a **double confirmation**.
 - GopForge refuses to inject into anything that isn't a MacPro4,1/5,1 image
   (size + insertion-point GUID), so a wrong dump can't be patched.
+- A patched Boot ROM may differ from its backup **only inside the DXE volume** that
+  holds the insertion point — NVRAM, serial/board data, microcode and the boot block
+  must be byte-identical, or the image is discarded.
+- Right before writing, the chip is **re-read and must still equal the backup** the
+  patch was made from; otherwise nothing is written (a stale image would roll NVRAM back).
+- **Restore** is built in (Backups › Restore) and gated the same way — see
+  [RECOVERY.md](RECOVERY.md).
