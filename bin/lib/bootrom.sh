@@ -28,20 +28,77 @@ bootrom_tools_ok() {
   return 0
 }
 
+# flashrom's report from the most recent chip read: it states the SPI protected
+# ranges (PRx) the firmware set at boot, which decide whether a write can work.
+GFL_FLASHROM_REPORT="${GFL_FLASHROM_REPORT:-/tmp/gopforge-bin/flashrom-last.txt}"
+
+# Run a (short) flashrom read; output goes to the log, the terminal and the report.
+_flashrom_read() { # args…
+  local rc=0
+  mkdir -p "$(dirname "$GFL_FLASHROM_REPORT")"
+  flashrom --programmer "$GFL_FLASHROM_PROG" "$@" >"$GFL_FLASHROM_REPORT" 2>&1 || rc=$?
+  tee -a "$GFL_LOG" <"$GFL_FLASHROM_REPORT" >"$GFL_TTY" 2>/dev/null || true
+  return "$rc"
+}
+
 # Dump the system BootROM. Echoes the dump path on success.
-# NOTE: on some Macs Apple SPI protected-range/descriptor locks can block the
-# write-back even when the read succeeds — see docs/RECOVERY.md.
 bootrom_dump() {
   local dir out
   dir="$(gfl_backup_dir firmware/Backups)"
   out="$dir/bootrom-$(date +%Y%m%d-%H%M%S).rom"
   info "reading system BootROM via flashrom ($GFL_FLASHROM_PROG) …"
-  if ! _run_logged flashrom --programmer "$GFL_FLASHROM_PROG" -r "$out"; then
+  if ! _flashrom_read -r "$out"; then
     err "flashrom read failed — see $GFL_LOG"; return 1
   fi
   verify_dump "$out" || return 1
   echo "$out"
 }
+
+# Write-protected ranges from the last flashrom report, one "start end" (decimal,
+# inclusive) per line. A failed write-enable counts as the whole chip.
+bootrom_wp_ranges() {
+  local r="$GFL_FLASHROM_REPORT" a b
+  [ -f "$r" ] || return 0
+  if grep -qiE 'Enabling flash write\.\.\. *FAILED|Setting Bios Control .* failed' "$r"; then
+    echo "0 4294967295"
+  fi
+  sed -nE 's/.*PR[0-9]+: Warning: 0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+) is (read-only|locked).*/\1 \2/p' "$r" |
+  while read -r a b; do echo "$((16#$a)) $((16#$b))"; done
+}
+
+# "start length" of the firmware volume holding the EnableGop insertion point —
+# the only region a patch (or restoring its backup) rewrites.
+bootrom_dxe_range() { # rom
+  perl -e '
+    my ($f,$anchor)=@ARGV; local $/;
+    open(my $fh,"<:raw",$f) or exit 2; my $x=<$fh>;
+    my $p = index($x, pack("H*",$anchor)); exit 4 if $p < 0;
+    my $h = rindex($x, "_FVH", $p);          exit 4 if $h < 40;
+    my $vs = $h - 40; my $vl = unpack("Q<", substr($x, $vs+32, 8));
+    exit 4 if $vl == 0 || $vs + $vl > length($x) || $p >= $vs + $vl;
+    printf "%d %d\n", $vs, $vl;' "$1" "9f59e7ba6b3cb743bdf09ce07aa91aa6"
+}
+
+# Would writing <rom> hit a write-protected range (per the last flashrom report)?
+# 0 = blocked (echoes the blocking ranges as hex), 1 = the region is writable.
+bootrom_write_blocked() { # rom [whole]  — "whole": the write may touch the entire chip
+  local s l e a b hit=1 range
+  if [ "${2:-}" != whole ] && range="$(bootrom_dxe_range "$1")"; then
+    read -r s l <<<"$range"; e=$(( s + l - 1 ))
+  else
+    s=0; e=$(( $(file_size "$1") - 1 ))           # unknown layout: the whole image
+  fi
+  while read -r a b; do
+    [ -n "$a" ] || continue
+    if [ "$a" -le "$e" ] && [ "$b" -ge "$s" ]; then
+      printf '0x%06X-0x%06X\n' "$a" "$b"; hit=0
+    fi
+  done < <(bootrom_wp_ranges)
+  return "$hit"
+}
+
+# Shared operator guidance when the chip is locked.
+GFL_FLASH_MODE_HELP="Shut down, then press and hold the power button until the Mac beeps (flash mode) and release it. Boot this USB again (hold Option, pick EFI Boot) and do Back Up, Patch and Flash in that session — NVRAM changes on every start, so a fresh backup is needed."
 
 # Run GopForge --check on a dump and return its human report (also to the log).
 bootrom_check() { # dump
@@ -112,7 +169,7 @@ bootrom_inject() { # dump variant
 # Read the chip into a temp file (not a backup). Echoes the path.
 bootrom_read_tmp() {
   local tmp; tmp="$(mktemp /tmp/gfl-chip-XXXXXX.rom)"
-  if ! _run_logged flashrom --programmer "$GFL_FLASHROM_PROG" -r "$tmp"; then
+  if ! _flashrom_read -r "$tmp"; then
     rm -f "$tmp"; err "flashrom read failed — see $GFL_LOG"; return 1
   fi
   echo "$tmp"

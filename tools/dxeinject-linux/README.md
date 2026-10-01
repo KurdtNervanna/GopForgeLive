@@ -55,7 +55,7 @@ installer:
 - **Changes stay in the DXE volume.** The app also enforces this at patch time and
   before writing: `bootrom_changes_confined` refuses any patched image that differs
   from the backup outside the DXE volume holding the insertion point.
-
-Not yet done: a byte comparison with dosdude1's macOS DXEInject itself. If you have a
-dump and the DXEInject/GopForge output made from it on macOS, run
-`dxeinject dump.rom out.rom EnableGop.ffs` and `cmp` the result.
+- **Matches dosdude1's DXEInject.** A real Mac Pro 5,1 Boot ROM that had been patched on
+  macOS with GopForge/DXEInject (EnableGop 1.4, Standard) has a DXE volume
+  (`0x150000`, 2.56 MiB) that is **byte-for-byte identical** to what this tool produces from
+  Apple's `MP51.fd`. Only the machine's own NVRAM and serial/board data differ.

@@ -108,7 +108,7 @@ gpu_vendor_label() { # vendorid
 # Pretty multi-line report used by the "Detect hardware" screen.
 detect_report() {
   detect_mac_model
-  detect_gpus
+  detect_gpus || true        # "no GPU found" is a result, not a failure
   {
     echo "System model : ${GFL_MAC_MODEL:-<not an Apple system / unknown>}"
     echo "flashrom     : $(command -v flashrom >/dev/null 2>&1 && flashrom --version 2>/dev/null | head -n1 || echo 'missing')"

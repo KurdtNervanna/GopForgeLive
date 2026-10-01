@@ -30,11 +30,20 @@ flash, one stage at a time. **Stop at any stage that doesn't look right.**
 
 **Stage 3: flash.** Do this only once stage 2 has been reviewed, and with a CH341A on hand.
 
-6. Boot the USB again and use **Boot ROM › Continue with a saved backup › Use** (or
-   make a fresh backup), patch, then **Flash Boot ROM…**. The chip is re-read first, and
-   if it changed since the backup you'll be asked to back up again.
-7. Shut down completely. Power on holding ⌥ Option: the startup picker should appear on
+A Mac Pro write-protects the Boot ROM region EnableGop goes into at every normal start.
+flashrom reports this as `PR1: 0x00150000-0x01ffffff is read-only`, and the app shows
+*Restart in flash mode to write*. So:
+
+6. Shut down. Press and hold the power button until the Mac **beeps** (the power light
+   flashes), then let go. As it starts, hold ⌥ Option and pick **EFI Boot**.
+7. In that session: **Back Up Boot ROM → Create Patched Image → Flash Boot ROM…**. A
+   fresh backup is needed because NVRAM changes on every start. The chip is re-read first,
+   and if it is still locked or changed since the backup, nothing is written.
+8. Shut down completely. Power on holding ⌥ Option: the startup picker should appear on
    your graphics card.
+
+If Inspect says **EnableGop is already installed**, this Mac was patched before (for
+example with GopForge on macOS), and there's nothing to do.
 
 ## iMac 2009–2011 (GPU firmware)
 

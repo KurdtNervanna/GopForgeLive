@@ -30,25 +30,7 @@ EOF
 
 # Write a full snapshot to the log at startup, so even a session where the
 # operator can't navigate leaves useful diagnostics on the USB.
-log_startup() {
-  machine_profile
-  {
-    echo "================ GopForge-Live session $(date 2>/dev/null) ================"
-    echo "version : $GFL_VERSION"
-    echo "cmdline : $(cat /proc/cmdline 2>/dev/null)"
-    echo "medium  : ${GFL_MEDIUM:-<none>}   workdir: $GFL_WORKDIR   plain-menu: $([ "$HAVE_WHIPTAIL" = 1 ] && echo no || echo yes)"
-    echo
-    detect_report
-    echo
-    echo "machine class : $GFL_MACHINE_CLASS  (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU)"
-    echo "$GFL_MACHINE_NOTE"
-    echo "amdvbflash : ${GFL_AMDVBFLASH:-<not found>}"
-    echo "nvflash    : ${GFL_NVFLASH:-<not found>}"
-    echo "flashrom   : $(command -v flashrom 2>/dev/null || echo '<not found>')"
-    echo "==========================================================================="
-  } >>"$GFL_LOG" 2>&1
-  sync 2>/dev/null || true
-}
+log_startup() { gfl_log_session "text wizard"; }
 
 preflight() {
   require_root
@@ -241,6 +223,16 @@ direct   = GPUs needing DirectGopRendering (e.g. some Vega)." \
     "backup: $dump\npatched: $patched" yes || { ui_msg "Cancelled" "Backup kept at $dump."; return 0; }
 
   local rc=0; bootrom_chip_matches "$dump" || rc=$?
+  local blk
+  if [ "$rc" -le 1 ] && blk="$(bootrom_write_blocked "$patched")"; then
+    ui_msg "Boot ROM is write-protected" \
+"flashrom reports these ranges read-only in this session:
+$blk
+EnableGop can't be written now; nothing was written.
+
+$GFL_FLASH_MODE_HELP"
+    return 0
+  fi
   if [ "$rc" -ne 0 ]; then
     ui_msg "Not written" \
 "$( [ "$rc" -eq 1 ] && echo "The Boot ROM changed since the backup was taken (NVRAM is written by the

@@ -279,7 +279,27 @@ cmd_dump_bootrom() {
   command -v flashrom >/dev/null 2>&1 || fail no_tool "flashrom is not available"
   local out; out="$(bootrom_dump)" || fail dump_failed "reading the BootROM failed — see the log"
   emit --argjson f "$(file_json "$out")" --argjson facts "$(bootrom_facts "$out")" \
-       '{ok:true, dump:$f, facts:$facts}'
+       --argjson prot "$(protection_json "$out")" \
+       '{ok:true, dump:$f, facts:$facts, protection:$prot}'
+}
+
+# Write protection as seen by the last flashrom read, judged against <rom>'s DXE volume.
+protection_json() { # rom
+  local blk="" blocks=false locked=false all
+  if blk="$(bootrom_write_blocked "$1")"; then blocks=true; fi
+  grep -qi 'SPI Configuration is locked down' "$GFL_FLASHROM_REPORT" 2>/dev/null && locked=true
+  all="$(bootrom_wp_ranges | while read -r a z; do printf '0x%06X-0x%06X\n' "$a" "$z"; done)"
+  emit --argjson b "$blocks" --argjson l "$locked" --arg r "$all" --arg blk "$blk" \
+       --arg help "$GFL_FLASH_MODE_HELP" \
+       '{blocks_patch:$b, config_locked:$l, protected:($r|split("\n")|map(select(length>0))),
+         blocking:($blk|split("\n")|map(select(length>0))), help:$help}'
+}
+
+refuse_if_protected() { # rom [whole]
+  local blk
+  if blk="$(bootrom_write_blocked "$@")"; then
+    refuse write_protected "the Boot ROM is write-protected in this session ($(tr '\n' ' ' <<<"$blk")read-only), so nothing was written. $GFL_FLASH_MODE_HELP"
+  fi
 }
 
 cmd_check_bootrom() { # dump
@@ -346,6 +366,7 @@ cmd_write_bootrom() { # patched original_dump
   fi
   _log API "write-bootrom patched=$p backup=$d expert=$GFL_EXPERT"
   local rc=0; bootrom_chip_matches "$d" || rc=$?
+  [ "$rc" -le 1 ] && refuse_if_protected "$p"       # the read above refreshed the report
   case "$rc" in
     0) : ;;
     1) refuse stale_backup "the Boot ROM has changed since this backup was taken (the firmware writes NVRAM), so the patched image is out of date. Nothing was written — back up again and re-patch." ;;
@@ -376,12 +397,15 @@ cmd_restore_bootrom() { # backup
     rm -f "$cur"; ok "the Boot ROM already matches this backup — nothing to do"
     emit --arg b "$b" '{ok:true, restored:$b, unchanged:true}'; return
   fi
+  local scope=""
   if ! bootrom_changes_confined "$b" "$cur" >/dev/null; then
     rm -f "$cur"
     truthy "$GFL_EXPERT" || refuse not_this_state "the chip differs from this backup outside the DXE volume (NVRAM / serial / boot block) — it is older than the chip's current state or from another Mac. Expert Mode can override."
     warn "Expert Mode: restoring a backup that differs outside the DXE volume"
+    scope=whole
   fi
   rm -f "$cur"
+  refuse_if_protected "$b" $scope
   _log API "restore-bootrom backup=$b expert=$GFL_EXPERT"
   bootrom_write "$b" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
   emit --arg b "$b" '{ok:true, restored:$b, unchanged:false}'
@@ -454,6 +478,7 @@ main() {
     restore-bootrom) cmd_restore_bootrom "$@" ;;
     restore-gpu)     cmd_restore_gpu "$@" ;;
     backups)         cmd_backups ;;
+    snapshot)        gfl_log_session app; emit '{ok:true}' ;;
     log)             cmd_log "$@" ;;
     *)               fail usage "unknown command: $c" 64 ;;
   esac

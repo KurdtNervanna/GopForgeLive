@@ -28,6 +28,29 @@ GFL_LOG="$GFL_WORKDIR/gopforge-live.log"
 . "$GFL_LIB/vbios.sh"
 . "$GFL_LIB/bootrom.sh"
 
+# Session snapshot for the log, so every session — app or text wizard — leaves
+# useful diagnostics on the USB even if nothing else happens.
+gfl_log_session() { # frontend
+  machine_profile
+  {
+    echo "================ GopForge-Live session $(date 2>/dev/null) — ${1:-?} ================"
+    echo "version : $GFL_VERSION"
+    echo "cmdline : $(cat /proc/cmdline 2>/dev/null)"
+    echo "medium  : ${GFL_MEDIUM:-<none>}   workdir: $GFL_WORKDIR"
+    echo
+    detect_report
+    echo
+    echo "machine class : $GFL_MACHINE_CLASS  (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU)"
+    echo "$GFL_MACHINE_NOTE"
+    echo "amdvbflash : ${GFL_AMDVBFLASH:-<not found>}"
+    echo "nvflash    : ${GFL_NVFLASH:-<not found>}"
+    echo "flashrom   : $(command -v flashrom 2>/dev/null || echo '<not found>')"
+    echo "injector   : $(linux_dxeinject 2>/dev/null || echo '<not available>')"
+    echo "==========================================================================="
+  } >>"$GFL_LOG" 2>&1
+  sync 2>/dev/null || true
+}
+
 # Escape hatch: an empty file named "gopforge-plain" on the USB forces the
 # plain-text menus in the text wizard.
 if [ -n "${GFL_MEDIUM:-}" ] && [ -e "$GFL_MEDIUM/gopforge-plain" ]; then HAVE_WHIPTAIL=0; fi

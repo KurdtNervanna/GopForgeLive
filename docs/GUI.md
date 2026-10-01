@@ -31,7 +31,9 @@ Every write is re-checked by `bin/gfl-api` no matter what the app sends:
 - Boot ROM images must be 4 MB with the Mac Pro fingerprint and exactly one EnableGop,
 - a patched Boot ROM may differ from your backup **only inside the DXE volume** — NVRAM,
   serial/board data, microcode and the boot block must be byte-identical,
-- right before a Boot ROM write the chip is re-read and must still equal the backup,
+- right before a Boot ROM write the chip is re-read and must still equal the backup, and
+  flashrom must not report that region as write-protected (Mac Pros need *flash mode*:
+  power button held until the beep),
 - flashing requires typing `FLASH` / `FLASH BOOTROM` (restoring: `RESTORE` /
   `RESTORE BOOTROM`), and the button only arms after three seconds.
 
@@ -82,6 +84,7 @@ dev/run-gui-dev.sh iMac10,1 wx4150        # the "which iMac?" + shared-ID card f
 dev/run-gui-dev.sh PC none                # unsupported machine
 GFL_MOCK_FAIL=write dev/run-gui-dev.sh    # make the Boot ROM write fail
 GFL_MOCK_DRIFT=1 dev/run-gui-dev.sh       # NVRAM changes between reads → stale-backup path
+GFL_MOCK_LOCKED=1 dev/run-gui-dev.sh      # chip write-protected like a normal cMP boot
 ```
 
 The simulated chip remembers writes (`dev/mock/usb/.mock-chip.rom`), so flash → restore

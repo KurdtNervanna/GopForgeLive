@@ -15,7 +15,7 @@ export async function enter() {
   if (b.ok) update({ backups: b });
 }
 const savedDumps = () => (S.backups?.files || []).filter((f) => f.kind === "bootrom");
-const freshBr = () => ({ dump: null, facts: null, report: "", checked: false, variant: "standard", patched: null, pfacts: null, written: false, error: null, stale: false });
+const freshBr = () => ({ dump: null, facts: null, report: "", checked: false, variant: "standard", patched: null, pfacts: null, written: false, error: null, stale: false, prot: null });
 const STEPS = [
   { id: "backup", label: "Back Up" }, { id: "inspect", label: "Inspect" },
   { id: "patch", label: "Patch" }, { id: "flash", label: "Flash" }, { id: "finish", label: "Finish" },
@@ -38,7 +38,7 @@ async function doDump() {
   S.br.error = null;
   const job = await runJob("dump-bootrom", {}, { owner: "br", title: "Reading the Boot ROM…" });
   if (job?.state === "done") {
-    Object.assign(S.br, { dump: job.result.dump, facts: job.result.facts });
+    Object.assign(S.br, { dump: job.result.dump, facts: job.result.facts, prot: job.result.protection || null });
     toast("ok", "Boot ROM backed up", `${job.result.dump.name} saved to the USB.`);
     update();
     enter();
@@ -85,6 +85,11 @@ function askFlash() {
       if (job?.state === "done") {
         S.br.written = true;
         toast("ok", "Boot ROM updated", "EnableGop is installed. Shut down to finish.", 9000);
+      } else if (job?.result?.code === "write_protected") {
+        // refused before anything was written: the chip is locked this session
+        S.br.prot = { ...(S.br.prot || {}), blocks_patch: true };
+        S.br.error = null;
+        toast("warn", "Nothing was written", "The Boot ROM is write-protected — restart in flash mode first.", 12000);
       } else if (job && ["stale_backup", "read_failed"].includes(job.result?.code)) {
         // refused before anything was written
         S.br.stale = job.result.code === "stale_backup";
@@ -228,6 +233,7 @@ function viewPatch() {
         ? html`The Linux EnableGop injector on this USB didn’t start. Your backup is complete and safe — the Activity log has the details.`
         : html`This USB doesn’t include the Linux EnableGop injector. Your backup is complete and safe —
       you can patch it with GopForge on macOS, or rebuild the USB with the injector included.`)}</div>`)}
+    ${when(S.br.prot?.blocks_patch, () => flashModeCallout("info", "Heads-up: this session can’t flash"))}
     ${jobBlock(j, { running: "Adding EnableGop…", done: "Patched image validated", failed: "Patching failed" })}
     ${when(S.br.patched, () => html`<div style="margin-top:var(--s5)">${fileCard(S.br.patched, "patched")}</div>`)}
     <div class="btn-row">
@@ -236,6 +242,22 @@ function viewPatch() {
       <button class="btn primary large" data-act="br-patch" ${blocked || (!ok && !expert) || jobRunning() ? "disabled" : ""}>${icon("layers")} Create Patched Image</button>
     </div>
   </div>`;
+}
+
+// cMP firmware locks the DXE region at every normal start (flashrom: "PR1 …
+// read-only"); "flash mode" — power button held until the beep — leaves it open.
+function flashModeCallout(tone, title) {
+  const blk = (S.br.prot?.blocking || []).join(", ");
+  const step = (n, t) => html`<li style="margin:4px 0"><strong>${n}.</strong> ${t}</li>`;
+  return html`<div style="margin-top:var(--s5)">${callout(tone, title, html`
+    flashrom reports the region EnableGop goes into as read-only${blk ? html` (<span class="mono">${blk}</span>)` : ""} —
+    a Mac Pro locks it at every normal start. To unlock it:
+    <ol style="margin:8px 0 0;padding-left:4px;list-style:none">
+      ${step(1, "Shut down.")}
+      ${step(2, "Press and hold the power button until the Mac beeps (the power light flashes), then let go.")}
+      ${step(3, "As it starts, hold ⌥ Option and choose EFI Boot to start this USB again.")}
+      ${step(4, "Do Back Up → Patch → Flash in that session. A fresh backup is needed because NVRAM changes on every start.")}
+    </ol>`)}</div>`;
 }
 
 function viewFlash() {
@@ -251,6 +273,7 @@ function viewFlash() {
       ${checkRow("ok", "NVRAM, serial number and boot block untouched", "Only the DXE driver volume differs from your backup")}
       ${checkRow("info", "Your Boot ROM is re-read first", "Nothing is written unless the chip still matches your backup")}
     </div>
+    ${when(b.prot?.blocks_patch, () => flashModeCallout("warn", "Restart in flash mode to write"))}
     ${when(b.stale, () => html`<div style="margin-top:var(--s5)">${callout("warn", "Your Boot ROM changed since this backup",
       html`The firmware updates its NVRAM as the Mac runs, so this patched image is out of date. Nothing was written.
       Take a fresh backup and patch again — it only takes a minute.`)}
@@ -263,14 +286,14 @@ function viewFlash() {
     <div style="margin-top:var(--s5)">${callout("danger", "Flashing firmware carries risk",
       html`If power is lost during the write the Mac may not start. Recovery then needs an SPI programmer (such as a CH341A) and the backup on this USB. See <span class="mono">docs/RECOVERY.md</span>.`)}</div>
     ${jobBlock(j, { running: "Writing…", done: "Boot ROM written and verified",
-      failed: ["stale_backup", "read_failed", "unconfirmed", "invalid_image"].includes(j?.result?.code) ? "Nothing was written" : "The write did not complete" })}
+      failed: ["stale_backup", "read_failed", "unconfirmed", "invalid_image", "write_protected"].includes(j?.result?.code) ? "Nothing was written" : "The write did not complete" })}
     ${when(b.error, () => html`<div style="margin-top:var(--s4)">${callout("danger", "Don’t turn off your Mac yet",
       html`${b.error} The Boot ROM may be unchanged or partially written. Open Activity for details, then retry the flash —
       or put your original back from <strong>Backups › Restore</strong>. Keep the Mac powered on until one of them succeeds.`)}</div>`)}
     <div class="btn-row">
       <button class="btn" data-act="br-reset" ${jobRunning() ? "disabled" : ""}>Start Over</button>
       <span class="grow"></span>
-      <button class="btn destructive large" data-act="br-flash" ${jobRunning() || b.stale ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
+      <button class="btn destructive large" data-act="br-flash" ${jobRunning() || b.stale || b.prot?.blocks_patch ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
     </div>
   </div>`;
 }

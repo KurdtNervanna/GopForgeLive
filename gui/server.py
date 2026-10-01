@@ -341,6 +341,9 @@ def main() -> None:
     if not shutil.which("bash"):
         sys.exit("bash is required")
 
+    # machine/tool snapshot into the USB log, without delaying the first page
+    threading.Thread(target=run_api, args=(["snapshot"],), daemon=True).start()
+
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     httpd.daemon_threads = True
     sys.stderr.write(f"GopForge-Live GUI on http://127.0.0.1:{args.port}/ "

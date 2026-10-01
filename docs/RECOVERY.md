@@ -41,9 +41,12 @@ This is the riskier of the two.
 - **The write failed or was interrupted:** **don't power off** while you still have a
   running system. Retry the flash, or use **Backups › Restore**. From a shell, the same
   thing is `flashrom -p internal -w <backup.rom>`.
-- **Apple SPI lock:** some Macs refuse an in-system write even though the read worked.
-  If `flashrom -w` fails cleanly and the Mac still boots, the Boot ROM is most likely
-  unchanged. Read the log under **Activity** before retrying.
+- **Write protection (flash mode):** at every normal start a Mac Pro marks the Boot ROM
+  read-only above `0x150000`. flashrom logs `SPI Configuration is locked down` and
+  `PR1: … is read-only`. The app reads this and refuses to flash or restore until you
+  restart in **flash mode**: shut down, hold the power button until the Mac beeps, then
+  boot the USB. If a write still fails cleanly and the Mac boots, the Boot ROM is most
+  likely unchanged. Read the log under **Activity** before retrying.
 - **Boots, but no boot screen:** EnableGop is harmless when it isn't working. Try the
   Direct variant (restore, then patch with Direct), or give the GPU GOP firmware.
 - **The Mac won't start (bricked):** reprogram the SPI flash from outside with a

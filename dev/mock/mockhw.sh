@@ -7,6 +7,7 @@
 #   GFL_MOCK_PATCHED=1  the simulated BootROM already contains EnableGop
 #   GFL_MOCK_FAST=1     skip the realistic delays
 #   GFL_MOCK_DRIFT=1    every Boot ROM read changes one NVRAM byte (stale-backup test)
+#   GFL_MOCK_LOCKED=1   Boot ROM write-protected like a cMP outside flash mode
 #   GFL_MOCK_CHIP       file holding the simulated chip (writes persist; default
 #                       $GFL_MEDIUM/.mock-chip.rom, else /tmp)
 # Usage (via the wrapper scripts in dev/mock/bin): mockhw.sh <tool> [args…]
@@ -65,7 +66,19 @@ case "$tool" in
     while [ $# -gt 0 ]; do case "$1" in -r) mode=r; file="$2"; shift 2;; -w) mode=w; file="$2"; shift 2;; *) shift;; esac; done
     echo "flashrom v1.3.0 (mock) on Linux 6.6.15-amd64 (x86_64)"
     echo "Using clock_gettime for delay loops (clk_id: 1, resolution: 1ns)."; nap 0.6
-    echo "Found chipset \"Intel ICH10R\"."; echo "Enabling flash write... OK."; nap 0.6
+    echo "Found chipset \"Intel ICH10R\"."
+    if [ "${GFL_MOCK_LOCKED:-0}" = 1 ]; then      # what a cMP prints outside flash mode
+      echo "Enabling flash write... SPI Configuration is locked down."
+      echo "PR0: Warning: 0x00000000-0x0011ffff is read-only."
+      echo "PR1: Warning: 0x00150000-0x01ffffff is read-only."
+      echo "At least some flash regions are write protected. For write operations,"
+      echo "you should use a flash layout and include only writable regions. See"
+      echo "manpage for more details."
+      echo "OK."
+    else
+      echo "Enabling flash write... OK."
+    fi
+    nap 0.6
     echo "Found SST flash chip \"SST25VF032B\" (4096 kB, SPI) mapped at physical address 0x00000000ffc00000."
     if [ "$mode" = r ]; then
       echo "Reading flash..."; nap 3
@@ -79,7 +92,7 @@ case "$tool" in
     elif [ "$mode" = w ]; then
       echo "Reading old flash chip contents... done."; nap 1.5
       echo "Erasing and writing flash chip..."; nap 5
-      fail_on write && { echo "Transaction error!"; echo "FAILED at 0x001a0000! Expected=0x9f, Found=0xff"; exit 1; }
+      { fail_on write || [ "${GFL_MOCK_LOCKED:-0}" = 1 ]; } && { echo "Transaction error!"; echo "FAILED at 0x001a0000! Expected=0x9f, Found=0xff"; exit 1; }
       cp "$file" "$CHIP"
       echo "Erase/write done."; echo "Verifying flash..."; nap 2; echo "VERIFIED."
     fi ;;
