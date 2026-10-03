@@ -1,6 +1,6 @@
 {
-  "matrix_version": "0.2.0",
-  "updated": "2026-09-23",
+  "matrix_version": "0.3.0",
+  "updated": "2026-10-03",
   "source": "https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN (GPL-3.0)",
   "note": "ROM file paths are relative to the roms/ library populated by tools/fetch-roms.sh (packed .rom.zip entries are unzipped to .rom). Method ranking for recommendation: gop > eg2 > eg > uga, subject to model_rules constraints. Auto-flash is never blind: the wizard shows candidates and requires a backup + explicit confirm.",
 
@@ -13,16 +13,21 @@
     "lvds": "LVDS-panel variant (iMac9,1 and iMac10,1 A1311). Polaris/GCN4 lack LVDS hardware."
   },
 
+  "backlight_addon": {
+    "url":  "https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN/wiki/Add-on-PCB",
+    "note": "27-inch iMacs (2009-2011) only: these cards cannot switch the backlight on during the EFI phase, even with adjusted EG2 firmware - the PWM signal stays at 0% (dark screen) until macOS takes over. A small add-on PCB on the backlight cable holds about 50% brightness until the card drives it. 21.5-inch iMacs don't need it."
+  },
+
   "model_rules": {
-    "iMac9,1":        {"panel": "lvds", "driver": "eg91", "note": "A1225 24\". Needs EnableGop91/LVDS ROMs. Best cards: M4000, M5100, W5170M, M6000. AVOID M6100/W6170M/W6150M (overheat under load)."},
-    "iMac10,1-A1311": {"panel": "lvds", "driver": "eg",   "note": "21.5\" LVDS. Use LVDS ROMs. Polaris/GCN4 (WX/RX) have no LVDS: internal boot screen only via external DP + driver board."},
-    "iMac10,1-A1312": {"panel": "edp",  "driver": "eg",   "forbid_methods": ["eg2"], "note": "27\" eDP. EG2 shows a white screen here — use EG or GOP only."},
+    "iMac9,1":        {"inch": 24, "panel": "lvds", "driver": "eg91", "note": "A1225 24\". Needs EnableGop91/LVDS ROMs. Best cards: M4000, M5100, W5170M, M6000. AVOID M6100/W6170M/W6150M (overheat under load)."},
+    "iMac10,1-A1311": {"inch": 21.5, "panel": "lvds", "driver": "eg",   "note": "21.5\" LVDS. Use LVDS ROMs. Polaris/GCN4 (WX/RX) have no LVDS: internal boot screen only via external DP + driver board."},
+    "iMac10,1-A1312": {"inch": 27, "panel": "edp",  "driver": "eg",   "forbid_methods": ["eg2"], "note": "27\" eDP. EG2 shows a white screen here — use EG or GOP only."},
     "iMac10,1":       {"panel": "unknown", "driver": "eg", "ambiguous": true, "note": "dmidecode cannot tell A1311 (21.5\" LVDS) from A1312 (27\" eDP). Confirm your panel: A1312/eDP must NOT use EG2."},
-    "iMac11,1":       {"panel": "edp", "driver": "any", "note": "27\" eDP."},
-    "iMac11,2":       {"panel": "edp", "driver": "any", "note": "21.5\" eDP."},
-    "iMac11,3":       {"panel": "edp", "driver": "any", "note": "27\" eDP."},
-    "iMac12,1":       {"panel": "edp", "driver": "any", "note": "21.5\" eDP."},
-    "iMac12,2":       {"panel": "edp", "driver": "any", "note": "27\" eDP. Only card enabling BOTH external connectors + boot screen where noted."}
+    "iMac11,1":       {"inch": 27, "panel": "edp", "driver": "any", "note": "27\" eDP."},
+    "iMac11,2":       {"inch": 21.5, "panel": "edp", "driver": "any", "note": "21.5\" eDP."},
+    "iMac11,3":       {"inch": 27, "panel": "edp", "driver": "any", "note": "27\" eDP."},
+    "iMac12,1":       {"inch": 21.5, "panel": "edp", "driver": "any", "note": "21.5\" eDP."},
+    "iMac12,2":       {"inch": 27, "panel": "edp", "driver": "any", "note": "27\" eDP. Only card enabling BOTH external connectors + boot screen where noted."}
   },
 
   "cards": [
@@ -58,7 +63,7 @@
         {"file": "EG/M5100-EnableGop91-LVDS-HynixBFR.rom", "method": "eg91", "panel": "lvds", "mem": "HynixBFR"},
         {"file": "UGA/M5100_EBC.rom", "method": "uga"}
       ],
-      "notes": "MATCH THE MEMORY VENDOR (Elpida/Samsung vs Hynix AFR/BFR/AFS) to your card. A wrong memory ROM can corrupt VRAM training."
+      "notes": "Match the memory vendor (Elpida/Samsung vs Hynix AFR/BFR/AFS) to your card. A wrong memory ROM can corrupt VRAM training."
     },
     {
       "name": "AMD FirePro M6000 (GCN1)", "family": "GCN1",
@@ -74,7 +79,7 @@
       ]
     },
     {
-      "name": "AMD FirePro M6100 (Saturn, GCN1)", "family": "GCN1",
+      "name": "AMD FirePro M6100 (Saturn, GCN2)", "family": "GCN2", "backlight_addon": true,
       "match": {"device": ["6640"], "name_globs": ["M6100"]},
       "lvds": true, "memory_variants": true, "hot": true,
       "roms": [
@@ -87,7 +92,7 @@
         {"file": "EG/M6100-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"},
         {"file": "EG/M6100-HynixBFR-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds", "mem": "HynixBFR"}
       ],
-      "notes": "Runs HOT — overheats iMac9,1 under load (README). Match memory vendor. Only EnableGop (EG) ROMs are published for this card."
+      "notes": "Runs hot — overheats the iMac9,1 under load. Match the memory vendor. Only EnableGop (EG) ROMs are published for this card."
     },
     {
       "name": "AMD FirePro W5170M (Venus, GCN1)", "family": "GCN1",
@@ -104,17 +109,17 @@
       ]
     },
     {
-      "name": "AMD FirePro W6150M (Saturn, GCN1)", "family": "GCN1",
+      "name": "AMD FirePro W6150M (Saturn, GCN2)", "family": "GCN2", "backlight_addon": true,
       "match": {"device": ["6646"], "name_globs": ["W6150"]},
       "hot": true,
       "roms": [
         {"file": "GOP/W6150M_GOP.rom", "method": "gop"},
         {"file": "EG/W6150M-4GB-EnableGop.rom", "method": "eg", "vram": "4GB"}
       ],
-      "notes": "Runs hot — overheats iMac9,1 (README)."
+      "notes": "Runs hot — overheats the iMac9,1 under load."
     },
     {
-      "name": "AMD FirePro W6170M (Saturn, GCN1)", "family": "GCN1",
+      "name": "AMD FirePro W6170M (Saturn, GCN2)", "family": "GCN2", "backlight_addon": true,
       "match": {"device": ["6646"], "name_globs": ["W6170"]},
       "hot": true,
       "roms": [
@@ -125,10 +130,10 @@
         {"file": "EG/W6170M-EnableGop.rom", "method": "eg"},
         {"file": "EG/W6170M-EnableGop91-LVDS.rom", "method": "eg91", "panel": "lvds"}
       ],
-      "notes": "Runs hot — overheats iMac9,1 (README)."
+      "notes": "Runs hot — overheats the iMac9,1 under load."
     },
     {
-      "name": "AMD FirePro W7170M (GCN1)", "family": "GCN1",
+      "name": "AMD FirePro W7170M (Amethyst, Tonga, GCN3)", "family": "GCN3", "backlight_addon": true,
       "match": {"device": ["6921"], "name_globs": ["W7170"]},
       "roms": [
         {"file": "EG2/W7170M-EG2_adj.rom", "method": "eg2"},
@@ -136,7 +141,7 @@
       ]
     },
     {
-      "name": "AMD FirePro S7100X (Tonga, GCN3)", "family": "GCN3",
+      "name": "AMD FirePro S7100X (Tonga, GCN3)", "family": "GCN3", "backlight_addon": true,
       "match": {"device": ["6930", "6939"], "name_globs": ["S7100"]},
       "roms": [
         {"file": "GOP/S7100X-6930-LVTMA-GOP.rom", "method": "gop"},
@@ -234,7 +239,7 @@
       "notes": "Device 67df is shared with RX470/570/580/590 — confirm the exact board. Polaris: eDP iMacs only."
     },
     {
-      "name": "AMD Radeon Pro RX5500XT (Navi 14)", "family": "RDNA1",
+      "name": "AMD Radeon Pro RX5500XT (Navi 14)", "family": "RDNA1", "backlight_addon": true,
       "match": {"device": ["7340"], "name_globs": ["RX5500", "5500XT"]},
       "lvds": false,
       "roms": [
@@ -242,7 +247,7 @@
         {"file": "EG/RX5500XT-EnableGop.rom", "method": "eg"},
         {"file": "EG/RX5500XT-4GB-EnableGop.rom", "method": "eg", "vram": "4GB"}
       ],
-      "notes": "Navi. Backlight control needs the legacy-vBIOS SSDT/DeviceProperties mod (README note 4)."
+      "notes": "Navi. In macOS, brightness control needs the legacy-vBIOS SSDT/DeviceProperties mod (upstream README, note 4); on 27-inch iMacs the boot screen also needs the backlight add-on."
     },
     {
       "name": "AMD Radeon Pro M370 (Strato/Cape Verde)", "family": "GCN1",
@@ -268,7 +273,7 @@
       "notes": "Legacy UGA boot-screen ROM only."
     },
     {
-      "name": "AMD Radeon R9 M290X (Tonga/Amethyst) — UNTESTED", "family": "GCN3",
+      "name": "AMD Radeon R9 M290X (Neptune, Pitcairn) — UNTESTED", "family": "GCN1", "backlight_addon": true,
       "match": {"device": ["6801"], "name_globs": ["M290X"]},
       "roms": [
         {"file": "UGA/M290X_UNTESTED.rom", "method": "uga"}

@@ -38,9 +38,10 @@ rom_method_of() { # cardjson file
 }
 
 # Model profile. Uses GFL_MODEL_KEY when set (the resolved sub-variant), else the
-# raw dmidecode model. Sets GFL_PANEL/GFL_DRIVER/GFL_FORBID/GFL_MODEL_NOTE.
+# raw dmidecode model. Sets GFL_PANEL/GFL_DRIVER/GFL_FORBID/GFL_MODEL_NOTE and
+# GFL_MODEL_INCH (screen size; "" when unknown, e.g. an unresolved iMac10,1).
 model_profile() {
-  GFL_PANEL="unknown"; GFL_DRIVER="any"; GFL_FORBID=""; GFL_MODEL_NOTE=""
+  GFL_PANEL="unknown"; GFL_DRIVER="any"; GFL_FORBID=""; GFL_MODEL_NOTE=""; GFL_MODEL_INCH=""
   lib_ok || return 0
   local m="${GFL_MODEL_KEY:-${GFL_MAC_MODEL:-}}"
   [ -n "$m" ] || return 0
@@ -51,6 +52,23 @@ model_profile() {
   GFL_DRIVER="$(jq -r '.driver // "any"' <<<"$row")"
   GFL_FORBID="$(jq -r '(.forbid_methods // []) | join(",")' <<<"$row")"
   GFL_MODEL_NOTE="$(jq -r '.note // ""' <<<"$row")"
+  GFL_MODEL_INCH="$(jq -r '.inch // "" | tostring' <<<"$row")"
+}
+
+# Does <card JSON> need the backlight add-on PCB in this model? (27" iMacs only.)
+# Echoes yes / maybe (screen size not known yet) / no.
+card_backlight_addon() { # card_json
+  jq -e '.backlight_addon == true' <<<"$1" >/dev/null 2>&1 || { echo no; return; }
+  case "${GFL_MODEL_INCH:-}" in
+    27) echo yes ;;
+    "") echo maybe ;;
+    *)  echo no ;;
+  esac
+}
+
+# The add-on's explanation and link, from the matrix.
+backlight_addon_info() { # -> "note<TAB>url"
+  jq -r '(.backlight_addon // {}) | [(.note // ""), (.url // "")] | join("\t")' "$GFL_MATRIX" 2>/dev/null
 }
 
 # Find matrix cards for a detected GPU: device-id matches first, then name-glob

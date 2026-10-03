@@ -86,43 +86,51 @@ The app picks firmware for your exact iMac and card from the
 "LVDS iMacs" are the iMac9,1 and the 21.5" iMac10,1 (A1311). Polaris and Navi cards have
 no LVDS output, so on those iMacs they can't show the internal boot screen.
 
-| Card | Chip | PCI ID | Firmware types | LVDS iMacs | Notes |
-|---|---|---|---|---|---|
-| AMD FirePro M4000 | GCN1 | `1002:682d` | GOP, EG2, EG, UGA | ✓ | Good low-power card, works down to iMac9,1. |
-| AMD FirePro M5100 | GCN1 | `1002:6821` | GOP, EG2, EG, EG91, UGA | ✓ | Match the memory vendor (Elpida/Samsung vs Hynix AFR/BFR/AFS) to your card. A wrong memory ROM can corrupt VRAM training. |
-| AMD FirePro M6000 | GCN1 | `1002:6825` | GOP, EG2, EG, EG91, UGA | ✓ |  |
-| AMD FirePro M6100 | GCN1 | `1002:6640` | EG, EG91 | ✓ | Runs hot — overheats iMac9,1 under load. Match memory vendor. Only EnableGop (EG) ROMs are published for this card. |
-| AMD FirePro W5170M | GCN1 | `1002:6820` | GOP, EG2, EG, EG91, UGA | ✓ |  |
-| AMD FirePro W6150M | GCN1 | `1002:6646` | GOP, EG | — | Runs hot — overheats iMac9,1. |
-| AMD FirePro W6170M | GCN1 | `1002:6646` | GOP, EG2, EG, EG91 | — | Runs hot — overheats iMac9,1. |
-| AMD FirePro W7170M | GCN1 | `1002:6921` | EG2, EG | — |  |
-| AMD FirePro S7100X | GCN3 | `1002:6930`, `1002:6939` | GOP, EG2, EG | — |  |
-| AMD Radeon Pro WX3200 | GCN4-Polaris | `1002:6981` | GOP, EG | ✗ (eDP only) | Polaris/GCN4: no LVDS. Internal boot screen only on eDP iMacs (11,x/12,x). |
-| AMD Radeon Pro WX4130 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | Polaris/GCN4: no LVDS (eDP iMacs only). If your VRAM differs, try the ALT_VRAM variant. |
-| AMD Radeon Pro WX4150 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | Polaris/GCN4: no LVDS (eDP iMacs only). Match VRAM (std vs ALT_VRAM) and memory (HynixAJR variant) to your board. |
-| AMD Radeon Pro WX4170 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | Polaris/GCN4: no LVDS (eDP iMacs only). |
-| AMD Radeon Pro WX7100 | GCN4-Polaris | `1002:67c0` | GOP, EG2, EG | ✗ (eDP only) | Polaris/GCN4: no LVDS (eDP iMacs only). |
-| AMD Radeon Pro RX470 | GCN4-Polaris | `1002:67df` | GOP, EG2 | ✗ (eDP only) | Device 67df is shared with RX480/570/580/590 — confirm this is an RX470 mobile before flashing. Polaris: eDP iMacs only. |
-| AMD Radeon Pro RX480 | GCN4-Polaris | `1002:67df` | GOP, EG2, EG | ✗ (eDP only) | Device 67df is shared with RX470/570/580/590 — confirm the exact board. Polaris: eDP iMacs only. |
-| AMD Radeon Pro RX5500XT | RDNA1 | `1002:7340` | EG2, EG | ✗ (eDP only) | Navi. Backlight control needs the legacy-vBIOS SSDT/DeviceProperties mod (upstream README, note 4). |
-| AMD Radeon Pro M370 | GCN1 | `1002:6820` | EG2 | — |  |
-| AMD Cape Verde XTA generic | GCN1 | `1002:6821` | EG2 | — | Generic Venus/Cape Verde XTA (device 6821) fallback. |
-| AMD Radeon HD 7950 Mac | GCN1 | `1002:679a` | UGA | — | Legacy UGA boot-screen ROM only. |
-| AMD Radeon R9 M290X | GCN3 | `1002:6801` | UGA | — | Marked UNTESTED upstream. |
+**Backlight add-on (27-inch iMacs only):** cards with Saturn, Tonga or Pitcairn chips, and
+the RX 5500 XT, can't switch the backlight on before macOS loads, so the screen stays dark at
+boot. A small [add-on PCB](https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN/wiki/Add-on-PCB)
+on the backlight cable fixes it. 21.5-inch iMacs don't need it. The app warns you when your
+iMac and card need one.
 
-| iMac | Panel | Notes |
-|---|---|---|
-| iMac9,1 | LVDS | A1225 24". Needs EnableGop91/LVDS ROMs. Best cards: M4000, M5100, W5170M, M6000. AVOID M6100/W6170M/W6150M (overheat under load). |
-| iMac10,1-A1311 | LVDS | 21.5" LVDS. Use LVDS ROMs. Polaris/GCN4 (WX/RX) have no LVDS: internal boot screen only via external DP + driver board. |
-| iMac10,1-A1312 | eDP | 27" eDP. EG2 shows a white screen here — use EG or GOP only. |
-| iMac11,1 | eDP | 27" eDP. |
-| iMac11,2 | eDP | 21.5" eDP. |
-| iMac11,3 | eDP | 27" eDP. |
-| iMac12,1 | eDP | 21.5" eDP. |
-| iMac12,2 | eDP | 27" eDP. Only card enabling BOTH external connectors + boot screen where noted. |
+<!-- compat:start -->
+| Card | Chip | PCI ID | Firmware types | LVDS iMacs | 27″ backlight add-on | Notes |
+|---|---|---|---|---|---|---|
+| AMD FirePro M4000 | GCN1 | `1002:682d` | GOP, EG2, EG, UGA | ✓ | — | Good low-power card, works down to iMac9,1. |
+| AMD FirePro M5100 | GCN1 | `1002:6821` | GOP, EG2, EG, EG91, UGA | ✓ | — | Match the memory vendor (Elpida/Samsung vs Hynix AFR/BFR/AFS) to your card. A wrong memory ROM can corrupt VRAM training. |
+| AMD FirePro M6000 | GCN1 | `1002:6825` | GOP, EG2, EG, EG91, UGA | ✓ | — |  |
+| AMD FirePro M6100 | GCN2 | `1002:6640` | EG, EG91 | ✓ | **Needed** | Runs hot — overheats the iMac9,1 under load. Match the memory vendor. Only EnableGop (EG) ROMs are published for this card. |
+| AMD FirePro W5170M | GCN1 | `1002:6820` | GOP, EG2, EG, EG91, UGA | ✓ | — |  |
+| AMD FirePro W6150M | GCN2 | `1002:6646` | GOP, EG | — | **Needed** | Runs hot — overheats the iMac9,1 under load. |
+| AMD FirePro W6170M | GCN2 | `1002:6646` | GOP, EG2, EG, EG91 | — | **Needed** | Runs hot — overheats the iMac9,1 under load. |
+| AMD FirePro W7170M | GCN3 | `1002:6921` | EG2, EG | — | **Needed** |  |
+| AMD FirePro S7100X | GCN3 | `1002:6930`, `1002:6939` | GOP, EG2, EG | — | **Needed** |  |
+| AMD Radeon Pro WX3200 | GCN4-Polaris | `1002:6981` | GOP, EG | ✗ (eDP only) | — | Polaris/GCN4: no LVDS. Internal boot screen only on eDP iMacs (11,x/12,x). |
+| AMD Radeon Pro WX4130 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | — | Polaris/GCN4: no LVDS (eDP iMacs only). If your VRAM differs, try the ALT_VRAM variant. |
+| AMD Radeon Pro WX4150 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | — | Polaris/GCN4: no LVDS (eDP iMacs only). Match VRAM (std vs ALT_VRAM) and memory (HynixAJR variant) to your board. |
+| AMD Radeon Pro WX4170 | GCN4-Polaris | `1002:67e8` | GOP, EG2, EG | ✗ (eDP only) | — | Polaris/GCN4: no LVDS (eDP iMacs only). |
+| AMD Radeon Pro WX7100 | GCN4-Polaris | `1002:67c0` | GOP, EG2, EG | ✗ (eDP only) | — | Polaris/GCN4: no LVDS (eDP iMacs only). |
+| AMD Radeon Pro RX470 | GCN4-Polaris | `1002:67df` | GOP, EG2 | ✗ (eDP only) | — | Device 67df is shared with RX480/570/580/590 — confirm this is an RX470 mobile before flashing. Polaris: eDP iMacs only. |
+| AMD Radeon Pro RX480 | GCN4-Polaris | `1002:67df` | GOP, EG2, EG | ✗ (eDP only) | — | Device 67df is shared with RX470/570/580/590 — confirm the exact board. Polaris: eDP iMacs only. |
+| AMD Radeon Pro RX5500XT | RDNA1 | `1002:7340` | EG2, EG | ✗ (eDP only) | **Needed** | Navi. In macOS, brightness control needs the legacy-vBIOS SSDT/DeviceProperties mod (upstream README, note 4); on 27-inch iMacs the boot screen also… |
+| AMD Radeon Pro M370 | GCN1 | `1002:6820` | EG2 | — | — |  |
+| AMD Cape Verde XTA generic | GCN1 | `1002:6821` | EG2 | — | — | Generic Venus/Cape Verde XTA (device 6821) fallback. |
+| AMD Radeon HD 7950 Mac | GCN1 | `1002:679a` | UGA | — | — | Legacy UGA boot-screen ROM only. |
+| AMD Radeon R9 M290X | GCN1 | `1002:6801` | UGA | — | **Needed** | Marked UNTESTED upstream. |
+
+| iMac | Screen | Panel | Notes |
+|---|---|---|---|
+| iMac9,1 | 24″ | LVDS | A1225 24". Needs EnableGop91/LVDS ROMs. Best cards: M4000, M5100, W5170M, M6000. AVOID M6100/W6170M/W6150M (overheat under load). |
+| iMac10,1-A1311 | 21.5″ | LVDS | 21.5" LVDS. Use LVDS ROMs. Polaris/GCN4 (WX/RX) have no LVDS: internal boot screen only via external DP + driver board. |
+| iMac10,1-A1312 | 27″ | eDP | 27" eDP. EG2 shows a white screen here — use EG or GOP only. |
+| iMac11,1 | 27″ | eDP | 27" eDP. |
+| iMac11,2 | 21.5″ | eDP | 21.5" eDP. |
+| iMac11,3 | 27″ | eDP | 27" eDP. |
+| iMac12,1 | 21.5″ | eDP | 21.5" eDP. |
+| iMac12,2 | 27″ | eDP | 27" eDP. Only card enabling BOTH external connectors + boot screen where noted. |
+<!-- compat:end -->
 
 <sub>Generated from [`catalog/imac-boot-screen-matrix.json`](catalog/imac-boot-screen-matrix.json)
-(the same rules the app enforces) with `py dev/compat-table.py`. Firmware the app knows won't
+(the same rules the app enforces) with `py dev/compat-table.py --write`. Firmware the app knows won't
 work on your model (e.g. EG2 on the 27" iMac10,1) is blocked.</sub>
 
 ## Why it exists

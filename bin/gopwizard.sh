@@ -145,11 +145,22 @@ pick manually?" defaultyes && browse_library_flash "$ven" "$name"
 
   local cname; cname="$(jq -r '.name' <<<"$card")"
   local cnotes; cnotes="$(jq -r '.notes // ""' <<<"$card")"
+  local blnote="" bl_note bl_url
+  case "$(card_backlight_addon "$card")" in
+    yes)   IFS=$'\t' read -r bl_note bl_url < <(backlight_addon_info) || true
+           blnote="BACKLIGHT: this card needs the backlight add-on PCB in a 27\" iMac, or the
+screen stays dark at boot until macOS starts. ${bl_url:-}
+" ;;
+    maybe) blnote="BACKLIGHT: on a 27\" iMac this card needs the backlight add-on PCB
+(21.5\" models don't).
+" ;;
+  esac
   ui_msg "Matched: $cname" \
 "Model : ${GFL_MODEL_KEY:-$GFL_MAC_MODEL}  (panel: $GFL_PANEL, driver: $GFL_DRIVER)
 GPU   : $name ($ven:$dev)
 ${GFL_MODEL_NOTE:+Model note: $GFL_MODEL_NOTE
-}${cnotes:+Card note : $cnotes}
+}${cnotes:+Card note : $cnotes
+}${blnote}
 
 Next screen ranks the ROMs for this card:
   ✓ suitable   ⚠ caution   ✗ won't work on this model

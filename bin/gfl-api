@@ -182,17 +182,21 @@ cmd_plan() { # gpu_index [model_key]
         '. + [{file:$f, method:$m, panel:$p, mem:$me, vram:$v, note:$no, path:$a,
                present:($a!=""), marker:{level:$l, text:$t}, forbidden:$fb, rank:$r}]' <<<"$roms")"
     done < <(jq -r '.roms[] | [.file, (.method//""), (.panel//""), (.mem//""), (.vram//""), (.note//"")] | join("\u001f")' <<<"$card")
-    cards="$(jq -c --argjson c "$card" --argjson r "$roms" \
+    cards="$(jq -c --argjson c "$card" --argjson r "$roms" --arg bl "$(card_backlight_addon "$card")" \
       '. + [{name:$c.name, family:($c.family//""), notes:($c.notes//""), lvds:($c.lvds//null),
              hot:($c.hot//false), memory_variants:($c.memory_variants//false),
-             roms:($r|sort_by(.rank, .file))}]' <<<"$cards")"
+             backlight_addon:$bl, roms:($r|sort_by(.rank, .file))}]' <<<"$cards")"
   done < <(matrix_find_cards "$dev" "$name")
+  local bl_note="" bl_url=""
+  IFS=$'\t' read -r bl_note bl_url < <(backlight_addon_info) || true
   emit --argjson gi "$gi" --arg dev "$dev" --arg name "$name" --arg key "$GFL_MODEL_KEY" \
        --arg p "$GFL_PANEL" --arg d "$GFL_DRIVER" --arg f "$GFL_FORBID" --arg n "$GFL_MODEL_NOTE" \
+       --arg inch "$GFL_MODEL_INCH" --arg bn "$bl_note" --arg bu "$bl_url" \
        --argjson c "$cards" \
        '{ok:true, gpu:{index:$gi, device:$dev, name:$name},
-         model:{key:$key, panel:$p, driver:$d, forbid:($f|split(",")|map(select(.!=""))), note:$n},
-         cards:$c}'
+         model:{key:$key, panel:$p, driver:$d, forbid:($f|split(",")|map(select(.!=""))), note:$n,
+                inch:(if $inch == "" then null else ($inch|tonumber) end)},
+         backlight_addon:{note:$bn, url:$bu}, cards:$c}'
 }
 
 cmd_library() {

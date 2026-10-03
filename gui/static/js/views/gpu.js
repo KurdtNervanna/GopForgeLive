@@ -17,6 +17,20 @@ const myJob = (...n) => (S.job && S.job.owner === "gpu" && n.includes(S.job.acti
 const selectedGpu = () => (S.gpus || []).find((g) => g.index === G().gpuIndex);
 const card = () => G().plan?.cards?.[G().cardIdx];
 
+// 27" iMacs: Saturn / Tonga / Pitcairn (and RX 5500 XT) cards can't switch the
+// backlight on before macOS loads — the screen stays dark unless the add-on PCB is fitted.
+function backlightCallout(c, p, wrap = "section") {
+  if (!c || !p || !["yes", "maybe"].includes(c.backlight_addon)) return "";
+  const bl = p.backlight_addon || {};
+  const link = bl.url ? html` Board and instructions: <span class="mono select-text">${bl.url}</span>` : "";
+  const body = c.backlight_addon === "yes"
+    ? html`${bl.note}${link}`
+    : html`On the 27-inch model this card needs a small add-on board on the backlight cable, or the screen stays dark at boot until macOS starts. 21.5-inch models don’t need it.${link}`;
+  const box = callout(c.backlight_addon === "yes" ? "warn" : "info",
+    c.backlight_addon === "yes" ? "Needs the backlight add-on in this 27-inch iMac" : "27-inch iMac? Plan for the backlight add-on", body);
+  return wrap === "section" ? html`<div class="section">${box}</div>` : html`<div style="margin-top:var(--s4)">${box}</div>`;
+}
+
 const VARIANT_LABEL = {
   "iMac10,1-A1311": ["21.5-inch", "Model A1311 · LVDS display"],
   "iMac10,1-A1312": ["27-inch", "Model A1312 · eDP display"],
@@ -210,6 +224,7 @@ function viewFirmware() {
       bestCardIndex(p.cards, selectedGpu()?.name || "") >= 0
         ? `These cards share one PCI ID. Pre-selected from the name your card reports (“${gpuName(selectedGpu()?.name)}”) — change it if that’s wrong.`
         : "These cards share the same PCI ID, so GopForge Live can’t tell them apart on its own — pick the one installed."))}
+    ${backlightCallout(c, p)}
     ${when(c.notes, () => html`<div class="section">${callout(noteKind, c.hot ? "Runs hot" : c.memory_variants ? "Match your memory vendor" : "About this card", c.notes)}</div>`)}
     ${when(p.model.note, () => html`<div style="margin-top:var(--s3)">${callout("info", p.model.key, p.model.note, "imac")}</div>`)}
     ${groups.map(([t, list]) => section(t, html`<div class="group">${list.map((r) => romRow(r, r === rec))}</div>`))}
@@ -257,6 +272,7 @@ function viewFlash() {
       <div class="row">${sq("archive", "blue")}<div class="main-col"><div class="title">Your backup</div><div class="subtitle">${g.backup.name} · <span class="mono">${shortHash(g.backup.sha256)}</span></div></div>${status("ok")}</div>
     </div>
     ${when(blocked(g.rom), () => html`<div style="margin-top:var(--s4)">${callout("danger", "Expert override", `${g.rom.marker.text}. You’ve chosen it with Expert Mode on.`)}</div>`)}
+    ${backlightCallout(card(), g.plan, "inline")}
     <div style="margin-top:var(--s4)">${callout("warn", "If the screen stays dark afterwards",
       html`Boot this USB again with another graphics card (or connect over SSH — user <span class="mono">root</span>, password <span class="mono">flash</span>) and restore <span class="mono">${g.backup.name}</span>.`)}</div>
     ${jobBlock(j, { running: "Flashing…", done: "Firmware written", failed: "Flashing failed" })}
@@ -280,7 +296,9 @@ function viewFinish() {
     </div>
     ${section("Next steps", html`<div class="group icons">
       ${tip(1, "Shut down completely", "Graphics firmware only reloads after a full power cycle.")}
-      ${tip(2, "Power on", "The boot screen should now appear on the built-in display.")}
+      ${tip(2, "Power on", card()?.backlight_addon === "yes"
+        ? "The boot screen should now appear on the built-in display — with the backlight add-on fitted. Without it the screen stays dark until macOS starts."
+        : "The boot screen should now appear on the built-in display.")}
       ${tip(3, "Hold ⌥ Option for the startup picker", "Use it to choose between macOS installs or this USB.")}
     </div>`, html`To undo, boot this USB and run <span class="mono">${restore}</span>.`)}
     <div class="btn-row">
