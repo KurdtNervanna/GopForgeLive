@@ -4,7 +4,7 @@
 
 ![GopForge Live — Overview on a Mac Pro 5,1](docs/screenshots/overview-macpro.png)
 
-> ⚠️ **Status: `0.3.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
+> ⚠️ **Status: `0.3.1-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
 > 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
 > injector produces a DXE volume byte-identical to dosdude1's DXEInject on a real
 > MacPro5,1 Boot ROM. **No firmware has yet been flashed by GopForge-Live on real
