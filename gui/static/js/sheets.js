@@ -19,7 +19,7 @@ function confirmSheet(sh) {
     <div class="s-body">${sh.body}</div>
     ${when(sh.rows?.length, () => html`<div class="group">${sh.rows.map(([k, v]) => html`
       <div class="row" style="min-height:40px"><div class="main-col"><div class="subtitle" style="margin:0">${k}</div></div>
-      <div class="value select-text" style="color:var(--label);max-width:65%;word-break:break-all">${v}</div></div>`)}</div>`)}
+      <div class="value select-text" style="color:var(--label);max-width:70%;overflow-wrap:anywhere;text-align:right">${v}</div></div>`)}</div>`)}
     <label class="confirm-label" for="confirm-field">To confirm, type <span class="mono">${sh.phrase}</span></label>
     <input id="confirm-field" class="field ${ready ? "match" : ""}" data-input="confirm" autocomplete="off" spellcheck="false" value="${sh.typed}" placeholder="${sh.phrase}">
     <div class="btn-row">

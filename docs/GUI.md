@@ -95,5 +95,9 @@ GFL_MOCK_DRIFT=1 dev/run-gui-dev.sh       # NVRAM changes between reads → stal
 GFL_MOCK_LOCKED=1 dev/run-gui-dev.sh      # chip write-protected like a normal cMP boot
 ```
 
+`dev/screenshots.py` regenerates the README screenshots (`docs/screenshots/`) from these
+simulated machines using Playwright and an installed Edge/Chrome
+(`pip install playwright`, then `py dev/screenshots.py`).
+
 The simulated chip remembers writes (`dev/mock/usb/.mock-chip.rom`), so flash → restore
 round-trips behave like the real thing.

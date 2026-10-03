@@ -2,6 +2,8 @@
 
 **An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
 
+![GopForge Live — Overview on a Mac Pro 5,1](docs/screenshots/overview-macpro.png)
+
 > ⚠️ **Status: `0.3.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
 > 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
 > injector produces a DXE volume byte-identical to dosdude1's DXEInject on a real
@@ -32,6 +34,23 @@ Python backend over the same engine as the text wizard): a device overview, guid
 and an activity log. It falls back to the text wizard automatically if graphics can't
 start. See [docs/GUI.md](docs/GUI.md) — including `dev/run-gui-dev.sh`, which runs the
 app against simulated hardware on any Linux/WSL box.
+
+### Screenshots
+
+| Mac Pro 4,1 / 5,1 — Boot ROM | |
+|---|---|
+| ![Boot ROM: backup inspected, choose the EnableGop variant](docs/screenshots/bootrom-patch.png) | ![Boot ROM: patched image validated, ready to flash](docs/screenshots/bootrom-flash.png) |
+| **Patch** — the backup is inspected, then you pick Standard or Direct EnableGop. | **Flash** — every check is shown before anything is written. |
+| ![Typed confirmation before flashing](docs/screenshots/bootrom-confirm.png) | ![Backups with in-app Restore](docs/screenshots/backups.png) |
+| **Confirm** — type `FLASH BOOTROM`; the button only arms after three seconds. | **Backups** — every firmware image is kept on the USB and can be restored. |
+
+| iMac 2009–2011 — graphics firmware | |
+|---|---|
+| ![iMac12,2 overview in light mode](docs/screenshots/overview-imac-light.png) | ![Firmware ranked for the iMac's display and card](docs/screenshots/gpu-firmware.png) |
+| **Overview** (light mode) — the model, display type and card are detected. | **Firmware** — ranked for this exact iMac and card; anything that can't work is locked. |
+
+<sub>Screenshots are of the real app running on its built-in simulated hardware
+(`dev/run-gui-dev.sh`), captured with `py dev/screenshots.py`.</sub>
 
 ## Why it exists
 
