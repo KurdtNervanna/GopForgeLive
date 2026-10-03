@@ -61,6 +61,18 @@ while read -r lib; do
 done
 strip --strip-unneeded "$OUT/dxeinject.bin" "$OUT"/lib/*.so* 2>/dev/null || true
 
+# License texts for every bundled library (Qt is LGPL-3; the others vary), taken from
+# the Debian package each came from. Sources: https://sources.debian.org/ (bookworm).
+mkdir -p "$OUT/licenses"
+for so in "$OUT"/lib/*.so*; do
+  pkg="$(chroot "$CHROOT" dpkg -S "*/$(basename "$so")" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+  if [ -n "$pkg" ] && [ -f "$CHROOT/usr/share/doc/$pkg/copyright" ]; then
+    cp "$CHROOT/usr/share/doc/$pkg/copyright" "$OUT/licenses/$pkg.copyright"
+  else
+    echo "! no license file found for $(basename "$so")"
+  fi
+done
+
 cat > "$OUT/dxeinject" <<'EOF'
 #!/bin/sh
 # Linux DXEInject: runs the bundled binary against its bundled Qt5Core.

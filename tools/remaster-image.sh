@@ -73,7 +73,11 @@ gfl_build_module() {
   install -d "$MODROOT/opt/gopforge-live"
   for d in bin catalog docs roms gui; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
   install -d "$MODROOT/opt/gopforge-live/vendor"
-  rsync -a "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
+  # dosdude1's macOS DXEInject is not redistributed (and can't run here — the Linux
+  # build below replaces it); GopForge's git metadata isn't needed either.
+  rsync -a --exclude '.git' --exclude 'tools/DXEInject' --exclude 'tools/.dxeinject.sha256' \
+    "$REPO/vendor/gopforge" "$MODROOT/opt/gopforge-live/vendor/"
+  rsync -a "$REPO/THIRD-PARTY.md" "$MODROOT/opt/gopforge-live/" 2>/dev/null || true
   # Linux DXEInject (the macOS one can't run here) — tools/dxeinject-linux/build.sh
   if [ -f "$REPO/vendor/dxeinject-linux/dxeinject.bin" ]; then
     rsync -a "$REPO/vendor/dxeinject-linux" "$MODROOT/opt/gopforge-live/vendor/"

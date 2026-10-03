@@ -28,7 +28,10 @@ done
 cp -a "$HERE/README.md" "$TARGET/" 2>/dev/null || true
 if [ -d "$HERE/vendor/gopforge" ]; then
   mkdir -p "$TARGET/vendor"; cp -a "$HERE/vendor/gopforge" "$TARGET/vendor/"
+  # not needed on the USB: git metadata, and the macOS-only DXEInject (Linux build below)
+  rm -rf "$TARGET/vendor/gopforge/.git" "$TARGET/vendor/gopforge/tools/DXEInject" "$TARGET/vendor/gopforge/tools/.dxeinject.sha256"
 fi
+cp -a "$HERE/THIRD-PARTY.md" "$TARGET/" 2>/dev/null || true
 # Linux DXEInject (staged off FAT at run time, since FAT keeps no exec bits)
 if [ -f "$HERE/vendor/dxeinject-linux/dxeinject.bin" ]; then
   mkdir -p "$TARGET/vendor"; cp -a "$HERE/vendor/dxeinject-linux" "$TARGET/vendor/"
