@@ -5,6 +5,7 @@ import { appIcon } from "./art.js";
 import { S, actions, update, setRenderer, applyPrefs, navigate, refreshStatus, openMenu, closeMenu, closeSheet, setTheme, jobRunning, persist } from "./core.js";
 import { renderSheet, renderMenu, renderHud, onInput as sheetInput } from "./sheets.js";
 import { macInfo } from "./macs.js";
+import { api } from "./api.js";
 import * as overview from "./views/overview.js";
 import * as bootrom from "./views/bootrom.js";
 import * as gpu from "./views/gpu.js";
@@ -184,8 +185,34 @@ document.addEventListener("keydown", (e) => {
 // Block accidental navigation away (the kiosk has no chrome, but just in case).
 window.addEventListener("beforeunload", (e) => { if (jobRunning()) { e.preventDefault(); e.returnValue = ""; } });
 
+// ------------------------------------------------------------------- display --
+// The kiosk has no window manager; session.sh sizes the window to the screen. If
+// that ever goes wrong and the window is larger than the screen, pin the app to the
+// visible screen area so nothing ends up past the edge.
+function fitToScreen() {
+  const sw = screen.width, sh = screen.height;
+  const over = innerWidth > sw + 2 || innerHeight > sh + 2;
+  const root = document.documentElement;
+  if (over) {
+    root.style.setProperty("--app-w", `${sw}px`);
+    root.style.setProperty("--app-h", `${sh}px`);
+    document.body.dataset.fit = "1";
+  } else {
+    root.style.removeProperty("--app-w"); root.style.removeProperty("--app-h");
+    delete document.body.dataset.fit;
+  }
+  return over;
+}
+window.addEventListener("resize", fitToScreen);
+
+// Log the real viewport once per session (shows up in the USB log).
+function reportDisplay() {
+  api.post("/api/client", { vw: innerWidth, vh: innerHeight, sw: screen.width, sh: screen.height, dpr: devicePixelRatio });
+}
+
 // --------------------------------------------------------------------- boot --
 async function boot() {
+  fitToScreen();
   applyPrefs();
   S.booting = true; S.error = null; update();
   const t0 = Date.now();
@@ -198,6 +225,7 @@ async function boot() {
   await new Promise((r) => setTimeout(r, Math.max(0, 700 - (Date.now() - t0))));
   if (!s || !s.ok) { S.booting = false; S.status = null; update({ error: s?.error || "The backend didn’t respond." }); return; }
   S.booting = false;
+  reportDisplay();
   await route();
 }
 boot();

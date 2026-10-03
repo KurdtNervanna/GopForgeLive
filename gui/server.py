@@ -321,6 +321,18 @@ class Handler(BaseHTTPRequestHandler):
         if route == "system":
             return self.send_json(system_action(str(body.get("action", ""))))
 
+        if route == "client":   # the app reports its real viewport once at start
+            def num(k: str) -> float:
+                try:
+                    return round(float(body.get(k, 0)), 2)
+                except (TypeError, ValueError):
+                    return 0.0
+            vw, vh, sw, sh, dpr = (num(k) for k in ("vw", "vh", "sw", "sh", "dpr"))
+            over = vw > sw + 2 or vh > sh + 2
+            SESSION.note(f"display: viewport {vw:g}x{vh:g} CSS px, screen {sw:g}x{sh:g}, "
+                         f"devicePixelRatio {dpr:g}" + ("  !! WINDOW LARGER THAN SCREEN" if over else ""))
+            return self.send_json({"ok": True, "overflow": over})
+
         return self.send_json({"ok": False, "code": "no_route", "error": route}, 404)
 
 

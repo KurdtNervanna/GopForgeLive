@@ -147,6 +147,10 @@
 /* ------------------------------------------------------------------ base -- */
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+/* The app's usable area. Normally the window; if the window ever ends up larger
+   than the screen (seen on a 27" iMac at 1.5x), app.js pins these to the screen. */
+:root { --app-w: 100vw; --app-h: 100vh; }
+body[data-fit] #root { position: fixed; left: 0; top: 0; width: var(--app-w); height: var(--app-h); overflow: hidden; transform: translateZ(0); }
 body {
   font-family: var(--font);
   font-size: var(--t-body);
@@ -193,7 +197,7 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; }
 }
 
 /* ---------------------------------------------------------------- layout -- */
-.app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100vh; overflow: hidden; }
+.app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: var(--app-h); overflow: hidden; }
 
 .sidebar {
   position: relative; display: flex; flex-direction: column;
@@ -526,7 +530,7 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; }
 }
 .console .l-ok { color: #34d85f; } .console .l-err { color: #ff6961; }
 .console .l-warn { color: #ffb340; } .console .l-info { color: #6ac4ff; } .console .l-dim { color: #8b8b92; }
-.console.tall { max-height: none; min-height: 60vh; }
+.console.tall { max-height: none; min-height: calc(var(--app-h) * .6); }
 .disclose { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--s2); padding: 4px 0; border: 0; background: none; color: var(--label-2); font-size: var(--t-footnote); font-weight: 500; }
 .disclose svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
 .disclose.open svg { transform: rotate(90deg); }
@@ -550,19 +554,19 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; }
 /* ------------------------------------------------------------------ sheets -- */
 .scrim {
   position: fixed; inset: 0; z-index: 50; display: flex; justify-content: center; align-items: flex-start;
-  padding-top: 9vh; background: rgba(0, 0, 0, .34); backdrop-filter: blur(3px);
+  padding-top: calc(var(--app-h) * .09); background: rgba(0, 0, 0, .34); backdrop-filter: blur(3px);
   animation: fade-in var(--dur) var(--ease);
 }
 :root[data-theme="light"] .scrim { background: rgba(0, 0, 0, .18); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .sheet {
-  width: min(520px, calc(100vw - 48px)); max-height: 82vh; overflow: auto;
+  width: min(520px, calc(var(--app-w) - 48px)); max-height: calc(var(--app-h) * .82); overflow: auto;
   padding: var(--s6); border-radius: var(--r-sheet);
   background: var(--sheet); backdrop-filter: blur(40px) saturate(180%);
   box-shadow: var(--shadow-sheet);
   animation: sheet-in var(--dur-slow) var(--ease-spring);
 }
-.sheet.wide { width: min(760px, calc(100vw - 48px)); }
+.sheet.wide { width: min(760px, calc(var(--app-w) - 48px)); }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(-18px) scale(.985); } to { opacity: 1; transform: none; } }
 .sheet .s-icon { width: 56px; height: 56px; margin-bottom: var(--s3); }
 .sheet .s-title { font-size: var(--t-headline); font-weight: 700; letter-spacing: -.013em; }
@@ -590,7 +594,7 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0; }
 /* ------------------------------------------------------------------- HUD -- */
 .hud-scrim { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); animation: fade-in var(--dur-slow) var(--ease); }
 .hud {
-  width: min(480px, calc(100vw - 48px)); padding: var(--s8) var(--s8) var(--s6); border-radius: 22px; text-align: center;
+  width: min(480px, calc(var(--app-w) - 48px)); padding: var(--s8) var(--s8) var(--s6); border-radius: 22px; text-align: center;
   background: rgba(30, 30, 32, .86); color: #fff; backdrop-filter: blur(40px) saturate(180%);
   box-shadow: 0 30px 90px rgba(0, 0, 0, .6), 0 0 0 .5px rgba(255, 255, 255, .14);
   animation: sheet-in var(--dur-slow) var(--ease-spring);

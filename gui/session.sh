@@ -25,7 +25,15 @@ read -r width height < <(xrandr 2>/dev/null | awk '/\*/ { split($1, a, "x"); sub
 scale=1
 [ "${width:-0}" -ge 2400 ] && scale=1.5                 # 27" iMac 2560x1440
 [ "${width:-0}" -ge 3600 ] && scale=2
-echo "screen ${width:-?}x${height:-?} → scale $scale"
+# Firefox reads --width/--height in CSS pixels, i.e. AFTER layout.css.devPixelsPerPx,
+# so pass the screen size divided by the scale — else at 1.5x the window is 1.5x the
+# screen and everything past the right/bottom edge is unreachable (seen on iMac12,2).
+win_w="" win_h=""
+if [ -n "${width:-}" ] && [ -n "${height:-}" ]; then
+  win_w=$(awk -v v="$width"  -v s="$scale" 'BEGIN { printf "%d", v / s }')
+  win_h=$(awk -v v="$height" -v s="$scale" 'BEGIN { printf "%d", v / s }')
+fi
+echo "screen ${width:-?}x${height:-?} → scale $scale, window ${win_w:-?}x${win_h:-?} CSS px"
 
 # --- backend ---------------------------------------------------------------
 token="$RUN/token"; rm -f "$token"
@@ -49,7 +57,8 @@ printf 'user_pref("layout.css.devPixelsPerPx", "%s");\n' "$scale" >>"$prof/user.
 rm -f /run/gopforge-textmode
 started=$(date +%s)
 MOZ_ENABLE_WAYLAND=0 MOZ_CRASHREPORTER_DISABLE=1 \
-  "$ff" --kiosk --no-remote --profile "$prof" ${width:+--width "$width"} ${height:+--height "$height"}       "http://127.0.0.1:$PORT/?t=$(cat "$token")" &
+  "$ff" --kiosk --no-remote --profile "$prof" ${win_w:+--width "$win_w"} ${win_h:+--height "$win_h"} \
+  "http://127.0.0.1:$PORT/?t=$(cat "$token")" &
 ffpid=$!
 wait "$ffpid"; rc=$?
 ran=$(( $(date +%s) - started ))

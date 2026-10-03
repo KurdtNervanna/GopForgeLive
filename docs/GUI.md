@@ -40,6 +40,14 @@ Every write is re-checked by `bin/gfl-api` no matter what the app sends:
 While firmware is being written a full-screen panel blocks the app and reminds you not
 to turn the Mac off.
 
+## Big screens
+
+On screens 2400 px wide or more (the 27" iMac's 2560×1440), the app renders at 1.5×, and
+at 2× from 3600 px. With no window manager, `gui/session.sh` sizes the Firefox window to
+the screen *in CSS pixels* (screen ÷ scale). If the window still ends up larger than the
+screen, the app pins itself to the visible area. Each session logs its real viewport to
+the USB log (`display: viewport …`).
+
 ## If the app doesn't appear
 
 The disk falls back to the text wizard automatically if X or Firefox can't start (for

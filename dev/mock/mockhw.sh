@@ -2,7 +2,7 @@
 # mockhw.sh — simulated Mac hardware for developing/demoing the GUI safely.
 # NOTHING here touches real hardware. Selected via environment:
 #   GFL_MOCK_MODEL  dmidecode product name   (default MacPro5,1; "PC" = non-Apple)
-#   GFL_MOCK_GPU    comma list of GPUs: vega64 rx580 wx4150 m6100 gtx680 qemu none
+#   GFL_MOCK_GPU    comma list of GPUs: vega64 rx580 wx7100 wx4150 m6100 gtx680 qemu none
 #   GFL_MOCK_FAIL   dump | write | backup | flash   → make that step fail
 #   GFL_MOCK_PATCHED=1  the simulated BootROM already contains EnableGop
 #   GFL_MOCK_FAST=1     skip the realistic delays
@@ -21,6 +21,7 @@ gpu_line() { # profile -> "bdf|lspci -Dnn text (no bdf)|subsys|amd-product|kind"
   case "$1" in
     vega64) echo "0000:0b:00.0|VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Vega 10 XL/XT [Radeon RX Vega 56/64] [1002:687f] (rev c1)|1002:0b36|Vega10 D0501 XTX A1 HBM2 8GB|amd" ;;
     rx580)  echo "0000:0c:00.0|VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon RX 470/480/570/570X/580/580X/590] [1002:67df] (rev e7)|1da2:e366|Ellesmere Polaris20 XTX GDDR5 8GB|amd" ;;
+    wx7100) echo "0000:01:00.0|VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Ellesmere [Radeon Pro WX 7100 Mobile] [1002:67c0] (rev 00)|1028:17b1|Ellesmere D0120 MXM GDDR5 8GB|amd" ;;
     wx4150) echo "0000:01:00.0|VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Baffin [Radeon Pro WX 4150] [1002:67e8] (rev 00)|106b:0000|Baffin D0911 MXM GDDR5 4GB|amd" ;;
     m6100)  echo "0000:01:00.0|VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Saturn XT [FirePro M6100] [1002:6640] (rev 00)|106b:014b|Saturn XT MXM GDDR5 2GB|amd" ;;
     gtx680) echo "0000:03:00.0|VGA compatible controller [0300]: NVIDIA Corporation GK104 [GeForce GTX 680] [10de:1180] (rev a1)|106b:010d|GTX 680 Mac Edition|nvidia" ;;
