@@ -52,7 +52,7 @@ checkout first with `fetch-vendor.sh` + `fetch-roms.sh`.
 | `--grow-mb N` | enlarge the output container by N MiB before adding the module (only helps if the FAT partition already has slack) |
 | `--comp gzip\|zstd\|xz` | squashfs compressor (default `gzip` for widest live-boot compatibility) |
 
-## Tuning / known-fragile points (untested on hardware)
+## Tuning / known-fragile points (verified with GRML-FLASH v2.0.0; other builds may differ)
 
 - **Module inclusion.** If `live/` contains a `filesystem.module`/`*.module` list,
   the script appends `zz-gopforge.squashfs` to it. If live-boot on your GRML build

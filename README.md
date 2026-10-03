@@ -2,10 +2,12 @@
 
 **An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
 
-> ⚠️ **Status: `0.3.0-untested`.** Boots and runs end-to-end in QEMU (UEFI), patches
-> Apple's MP51.fd correctly, and has reached the app on a real Mac Pro — but no
-> firmware has been flashed on real hardware yet ([docs/TESTING.md](docs/TESTING.md)). Do not flash a machine you can't recover (see
-> [docs/RECOVERY.md](docs/RECOVERY.md)). This repo is private until it's tested.
+> ⚠️ **Status: `0.3.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
+> 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
+> injector produces a DXE volume byte-identical to dosdude1's DXEInject on a real
+> MacPro5,1 Boot ROM. **No firmware has yet been flashed by GopForge-Live on real
+> hardware** — treat flashing as experimental, follow [docs/TESTING.md](docs/TESTING.md),
+> and don't flash a machine you can't recover ([docs/RECOVERY.md](docs/RECOVERY.md)).
 
 GopForge-Live is a guided app (with a text-mode fallback) that runs inside the
 [GRML-FLASH](https://github.com/Ausdauersportler/GRML-FLASH) live environment and

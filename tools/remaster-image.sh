@@ -20,8 +20,8 @@
 #
 # Prereqrequisites (Linux, root): losetup, mksquashfs (squashfs-tools), rsync,
 # blkid, and a prepared checkout (run tools/fetch-vendor.sh + tools/fetch-roms.sh
-# first). UNTESTED on hardware; live-boot module inclusion + the tty1 autostart
-# may need per-version tuning — see docs/REMASTER.md.
+# first). Verified with GRML-FLASH v2.0.0 in QEMU and on a real Mac Pro 5,1 and
+# iMac12,2; other GRML builds may need tuning — see docs/REMASTER.md.
 set -Eeuo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
