@@ -33,3 +33,7 @@ Backups/
 # GUI dev: simulated USB + cached tools
 /dev/mock/usb/
 /dev/.cache/
+
+# Python bytecode
+__pycache__/
+*.pyc

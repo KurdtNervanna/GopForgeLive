@@ -53,6 +53,11 @@ This is the riskier of the two.
   **CH341A** programmer (clip in-circuit, or desolder the chip) and write back your saved
   backup. That's why a hardware recovery path should exist before you flash the Boot ROM.
 
+- **After a firmware update or crossflash:** your original Boot ROM is still in
+  `firmware/Backups/`. Restoring it rewrites the whole chip, so **Backups › Restore** needs
+  Expert Mode and flash mode. If the Mac no longer starts at all, write the backup with a
+  CH341A.
+
 ## General
 
 - Flash only on stable power (a UPS if you have one).

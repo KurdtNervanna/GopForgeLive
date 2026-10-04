@@ -17,6 +17,71 @@ GFL_DXEINJECT_DIR="${GFL_DXEINJECT_DIR:-$GFL_ROOT/vendor/dxeinject-linux}"
 # flashrom programmer for in-system Mac SPI. cMP/iMac use the internal PCH SPI.
 GFL_FLASHROM_PROG="${GFL_FLASHROM_PROG:-internal}"
 
+# --- 144.0.0.0.0 rebuild / 4,1 -> 5,1 crossflash --------------------------------
+# Borowski's Boot ROM templates (MacRumors "Guide: How to rebuild/update Mac Pro 4.1/5.1
+# bootrom with template files"). Not redistributed: the operator copies templates.zip
+# (or the .bin from it) into gopforge-live/templates/ on the USB. Pinned by SHA-256.
+GFL_TEMPLATE_DIR="${GFL_TEMPLATE_DIR:-$GFL_WORKDIR/templates}"
+GFL_TEMPLATE_URL="https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/"
+GFL_TEMPLATE_ZIP_SHA="eb65c5e313a76797071522f0dfd0f0be5a3c678393613234421be5e975d7e21d"
+GFL_TEMPLATE_BIN_SHA="936077fabf6b123ac37754a318150570e9069c04f7c681374125e91064f6ea20"   # v144.0.0.0.0_template.bin
+GFL_TEMPLATE_NAME="v144.0.0.0.0_template.bin"
+GFL_REBUILD_PY="$GFL_LIB/bootrom_rebuild.py"
+
+# Echo the path of a verified 144.0.0.0.0 template (extracting it from templates.zip
+# into /tmp when that is what's on the USB). Fails when none is found.
+template_find() {
+  local f sha out="/tmp/gopforge-bin/$GFL_TEMPLATE_NAME"
+  [ -f "$out" ] && [ "$(sha256_of "$out")" = "$GFL_TEMPLATE_BIN_SHA" ] && { echo "$out"; return 0; }
+  for f in "$GFL_TEMPLATE_DIR"/*.bin "$GFL_TEMPLATE_DIR"/*.zip "${GFL_MEDIUM:-/nonexistent}"/templates.zip; do
+    [ -f "$f" ] || continue
+    sha="$(sha256_of "$f")"
+    case "$sha" in
+      "$GFL_TEMPLATE_BIN_SHA") echo "$f"; return 0 ;;
+      "$GFL_TEMPLATE_ZIP_SHA")
+        mkdir -p "$(dirname "$out")"
+        python3 -c 'import sys, zipfile; open(sys.argv[3], "wb").write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))' \
+          "$f" "$GFL_TEMPLATE_NAME" "$out" 2>/dev/null || continue
+        [ "$(sha256_of "$out")" = "$GFL_TEMPLATE_BIN_SHA" ] && { echo "$out"; return 0; }
+        rm -f "$out" ;;
+    esac
+  done
+  return 1
+}
+
+# Rebuild <dump> on the template. Echoes the new image path; the JSON report from
+# bootrom_rebuild.py goes to the log (and to $GFL_REBUILD_REPORT when set).
+bootrom_rebuild() { # dump
+  local dump="$1" tpl out rep rc=0
+  tpl="$(template_find)" || { err "no verified 144.0.0.0.0 template in $GFL_TEMPLATE_DIR"; return 3; }
+  out="${dump%.rom}-144.rom"
+  info "rebuilding $(basename "$dump") on the 144.0.0.0.0 template …"
+  rep="$(python3 "$GFL_REBUILD_PY" rebuild "$tpl" "$dump" "$out")" || rc=$?
+  printf '%s\n' "$rep" >>"$GFL_LOG"
+  [ -n "${GFL_REBUILD_REPORT:-}" ] && printf '%s\n' "$rep" >"$GFL_REBUILD_REPORT"
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$out"; err "rebuild refused: $(sed -n 's/.*"error": "\([^"]*\)".*/\1/p' <<<"$rep")"; return "$rc"
+  fi
+  verify_dump "$out" "$(file_size "$dump")" || { rm -f "$out"; return 1; }
+  ok "rebuilt image: $(basename "$out") — serial, Gaid and MAC/LBSN block carried over, checksums valid"
+  echo "$out"
+}
+
+# Is <image> exactly the rebuild of <dump> (optionally plus EnableGop, which may only
+# change the DXE volume)? Recomputes the rebuild from scratch and compares.
+bootrom_is_rebuild_of() { # image dump
+  local image="$1" dump="$2" tpl tmp rc=1
+  tpl="$(template_find)" || return 1
+  tmp="$(mktemp /tmp/gfl-rebuild-XXXXXX.rom)"
+  if python3 "$GFL_REBUILD_PY" rebuild "$tpl" "$dump" "$tmp" >/dev/null 2>&1; then
+    if cmp -s "$tmp" "$image"; then rc=0
+    elif bootrom_changes_confined "$tmp" "$image" >/dev/null; then rc=0
+    fi
+  fi
+  rm -f "$tmp"
+  return "$rc"
+}
+
 bootrom_tools_ok() {
   command -v flashrom >/dev/null 2>&1 || { err "flashrom missing"; return 1; }
   [ -x "$GFL_GOPFORGE" ] || [ -f "$GFL_GOPFORGE" ] || { err "gopforge.sh not found at $GFL_GOPFORGE (run tools/fetch-vendor.sh)"; return 1; }

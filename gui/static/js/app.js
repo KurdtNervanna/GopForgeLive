@@ -8,12 +8,13 @@ import { macInfo } from "./macs.js";
 import { api } from "./api.js";
 import * as overview from "./views/overview.js";
 import * as bootrom from "./views/bootrom.js";
+import * as rebuild from "./views/rebuild.js";
 import * as gpu from "./views/gpu.js";
 import * as backups from "./views/backups.js";
 import * as library from "./views/library.js";
 import * as activity from "./views/activity.js";
 
-const VIEWS = { overview, bootrom, gpu, backups, library, activity };
+const VIEWS = { overview, bootrom, rebuild, gpu, backups, library, activity };
 
 // ------------------------------------------------------------------ sidebar --
 function navItem(route, ic, color, label, { meta = "", locked = false } = {}) {
@@ -35,6 +36,7 @@ function sidebar() {
     </div>
     <div class="nav-section"><div class="nav-title">Boot Screen</div>
       ${navItem("bootrom", "chip", "orange", "Boot ROM", { locked: !(m.allow_bootrom || ex) })}
+      ${navItem("rebuild", "download", "teal", "Firmware Update", { locked: !(m.allow_bootrom || ex) })}
       ${navItem("gpu", "gpu", "purple", "Graphics Card", { locked: !(m.allow_gpu || ex) })}
     </div>
     <div class="nav-section"><div class="nav-title">Library</div>

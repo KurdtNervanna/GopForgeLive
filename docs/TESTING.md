@@ -45,6 +45,23 @@ flashrom reports this as `PR1: 0x00150000-0x01ffffff is read-only`, and the app 
 If Inspect says **EnableGop is already installed**, this Mac was patched before (for
 example with GopForge on macOS), and there's nothing to do.
 
+## Firmware Update (rebuild / 4,1 → 5,1 crossflash)
+
+This is experimental. It rewrites the whole chip, so treat it like stage 3 above: flash
+mode, a CH341A on hand, and a backup copied off the USB.
+
+1. Copy `templates.zip` from the
+   [template guide](https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/)
+   into `gopforge-live/templates/` on the USB.
+2. Boot the USB in flash mode, then open **Firmware Update** and choose **Back Up**. The
+   Build step shows the current firmware, serial number and LBSN taken from your backup.
+3. **Build Firmware Image.** Every check on the Flash step must pass.
+4. **First test it without writing.** Send back the log, the backup and the `-144` image.
+   Rebuilding an existing 5,1 should reproduce your current ROM everywhere except the
+   emptied NVRAM.
+5. Only then write it. A 4,1 needs Expert Mode, because the 4,1 path hasn't been verified on
+   real hardware yet.
+
 ## iMac 2009–2011 (GPU firmware)
 
 1. **Overview** shows the right iMac model. For iMac10,1 you'll be asked for the 21.5"

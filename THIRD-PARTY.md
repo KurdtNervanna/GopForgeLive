@@ -15,6 +15,9 @@ also bundles the following, each under its own license.
 | [Inter](https://rsms.me/inter/) and [JetBrains Mono](https://www.jetbrains.com/lp/mono/) fonts | `gui/static/fonts/` | SIL Open Font License 1.1 |
 
 **Not included:** dosdude1's macOS `DXEInject` (GopForge-Live uses the Linux build of the
-same engine instead) and any Apple firmware.
+same engine instead), any Apple firmware, and the 144.0.0.0.0 Boot ROM templates used by
+**Firmware Update**. You copy Borowski's `templates.zip` from the
+[MacRumors guide](https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/)
+to the USB yourself.
 
 Not affiliated with Apple, AMD, NVIDIA, or the projects above.

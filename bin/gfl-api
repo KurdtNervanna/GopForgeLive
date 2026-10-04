@@ -415,6 +415,78 @@ cmd_restore_bootrom() { # backup
   emit --arg b "$b" '{ok:true, restored:$b, unchanged:false}'
 }
 
+# --- 144.0.0.0.0 rebuild / 4,1 -> 5,1 crossflash ------------------------------------
+cmd_templates() {
+  local t="" ok=false
+  t="$(template_find)" && ok=true
+  emit --argjson ok "$ok" --arg p "$t" --arg dir "$GFL_TEMPLATE_DIR" --arg url "$GFL_TEMPLATE_URL" \
+       --arg zs "$GFL_TEMPLATE_ZIP_SHA" --arg bs "$GFL_TEMPLATE_BIN_SHA" \
+       '{ok:true, found:$ok, path:$p, dir:$dir, url:$url, zip_sha256:$zs, bin_sha256:$bs}'
+}
+
+cmd_rom_identity() { # rom
+  need rom "${1:-}"
+  in_workdir "$1" || fail bad_file "not a file on this USB: $1"
+  local j; j="$(python3 "$GFL_REBUILD_PY" identity "$1")" || fail bad_file "could not read $(basename "$1")"
+  printf '%s\n' "$j"
+}
+
+cmd_rebuild_bootrom() { # dump none|standard|direct
+  need dump "${1:-}"; need variant "${2:-}"
+  local dump="$1" variant="$2" rep out rc=0
+  allow_bootrom || refuse gated "BootROM work is only offered on Mac Pro 4,1/5,1"
+  in_workdir "$dump" || fail bad_file "not a file on this USB: $dump"
+  case "$(basename "$dump")" in *-enablegop.rom|*-144*.rom) refuse bad_file "rebuild from an original backup, not from a patched or rebuilt image" ;; esac
+  case "$variant" in none|standard|direct) : ;; *) fail usage "variant must be none, standard or direct" 64 ;; esac
+  template_find >/dev/null || refuse no_template "No 144.0.0.0.0 template on this USB. Copy templates.zip from the MacRumors guide into gopforge-live/templates/."
+  rep="$(mktemp)"
+  out="$(GFL_REBUILD_REPORT="$rep" bootrom_rebuild "$dump")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    local e; e="$(jq -r '.error // empty' "$rep" 2>/dev/null)"; rm -f "$rep"
+    case "$rc" in 4|3) refuse rebuild_refused "${e:-the rebuild was refused — see the log}" ;; *) fail rebuild_failed "${e:-the rebuild failed — see the log}" ;; esac
+  fi
+  local report; report="$(jq -c 'del(.ok)' "$rep")"; rm -f "$rep"
+  if [ "$variant" != none ]; then
+    [ "$(injector_state)" = ok ] || [ "$(injector_state)" = mock ] || refuse injector_unavailable "The Linux EnableGop injector isn't available on this USB."
+    local eg; eg="$(bootrom_inject "$out" "$variant")" || fail inject_failed "adding EnableGop to the rebuilt image failed — see the log"
+    jq -e '.enablegop_count==1' <<<"$(bootrom_facts "$eg")" >/dev/null || fail validate_failed "the rebuilt image with EnableGop failed validation"
+    out="$eg"
+  fi
+  _log API "rebuild-bootrom dump=$dump variant=$variant -> $out"
+  emit --argjson f "$(file_json "$out")" --argjson r "$report" --arg v "$variant" \
+       --argjson facts "$(bootrom_facts "$out")" \
+       '{ok:true, image:$f, report:$r, variant:$v, facts:$facts, crossflash:$r.crossflash}'
+}
+
+cmd_write_rebuilt() { # image original_dump
+  need image "${1:-}"; need dump "${2:-}"
+  local img="$1" d="$2"
+  allow_bootrom || refuse gated "BootROM flashing is only offered on Mac Pro 4,1/5,1"
+  [ "${GFL_CONFIRM:-}" = "REBUILD BOOTROM" ] || refuse unconfirmed "type REBUILD BOOTROM to confirm"
+  in_workdir "$d" || refuse no_backup "the original Boot ROM backup must be on this USB"
+  in_workdir "$img" || refuse bad_file "the rebuilt image must be on this USB"
+  [ "$(readlink -f "$img")" != "$(readlink -f "$d")" ] || refuse bad_file "image and backup are the same file"
+  template_find >/dev/null || refuse no_template "the 144.0.0.0.0 template is no longer on this USB"
+  bootrom_is_rebuild_of "$img" "$d" \
+    || refuse not_rebuild "this image is not the verified rebuild of $(basename "$d") — rebuild it again"
+  jq -e '.is_4mib and .enablegop_count<=1' <<<"$(bootrom_facts "$img")" >/dev/null \
+    || refuse invalid_image "the rebuilt image failed the 4 MiB / single-EnableGop checks"
+  local donor; donor="$(python3 "$GFL_REBUILD_PY" identity "$d" | jq -r '.model // ""')"
+  if [ "$donor" = MP41 ] && ! truthy "$GFL_EXPERT"; then
+    refuse crossflash_unverified "Crossflashing a Mac Pro 4,1 to 5,1 firmware hasn't been verified on real hardware with GopForge Live yet. Turn on Expert Mode to go ahead — and have a CH341A programmer and your backup ready."
+  fi
+  _log API "write-rebuilt image=$img backup=$d donor=$donor expert=$GFL_EXPERT"
+  local rc=0; bootrom_chip_matches "$d" || rc=$?
+  [ "$rc" -le 1 ] && refuse_if_protected "$img" whole     # the whole chip is rewritten, boot block included
+  case "$rc" in
+    0) : ;;
+    1) refuse stale_backup "the Boot ROM has changed since this backup was taken, so the rebuilt image is out of date. Nothing was written — back up again and rebuild." ;;
+    *) fail read_failed "re-reading the Boot ROM before writing failed — nothing was written; see the log" ;;
+  esac
+  bootrom_write "$img" || fail write_failed "flashrom reported a write error — do NOT power off; see Recovery"
+  emit --arg i "$img" --arg d "$d" --arg m "$donor" '{ok:true, written:$i, backup:$d, crossflash:($m=="MP41")}'
+}
+
 # Flash a graphics-firmware backup back onto the adapter it came from.
 cmd_restore_gpu() { # amd|nvidia index backup
   need vendor "${1:-}"; need index "${2:-}"; need backup "${3:-}"
@@ -481,6 +553,10 @@ main() {
     write-bootrom)   cmd_write_bootrom "$@" ;;
     restore-bootrom) cmd_restore_bootrom "$@" ;;
     restore-gpu)     cmd_restore_gpu "$@" ;;
+    templates)       cmd_templates ;;
+    rom-identity)    cmd_rom_identity "$@" ;;
+    rebuild-bootrom) cmd_rebuild_bootrom "$@" ;;
+    write-rebuilt)   cmd_write_rebuilt "$@" ;;
     backups)         cmd_backups ;;
     snapshot)        gfl_log_session app; emit '{ok:true}' ;;
     log)             cmd_log "$@" ;;

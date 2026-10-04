@@ -19,7 +19,8 @@ GPU:
 1. **Detect** the Mac model (`dmidecode`) and installed GPU(s) (`lspci`).
 2. **Recommend** a known-good, GOP-enabled vBIOS from a curated catalog.
 3. **Back up and flash** the GPU vBIOS (`amdvbflash` / `nvflash`).
-4. **Dump → patch → flash** the Mac BootROM: `flashrom` reads it,
+4. **Update a Mac Pro's firmware** to 144.0.0.0.0, including a **4,1 → 5,1 crossflash** (experimental, see below).
+5. **Dump → patch → flash** the Mac BootROM: `flashrom` reads it,
    [GopForge](https://github.com/KurdtNervanna/GopForge) injects EnableGop, and
    `flashrom` writes it back — all on Linux. GopForge's injector (dosdude1's
    DXEInject) is macOS-only, so the USB carries a Linux build of the same engine:
@@ -72,6 +73,28 @@ RX 400/500, Vega and RX 5000/6000 cards, and NVIDIA cards with UEFI firmware. Ca
 without GOP in their firmware (e.g. Fury/Fiji and many older or ex-mining AMD cards)
 also need a GOP vBIOS on the card itself. A Mac Pro 4,1 flashed to 5,1 firmware is
 supported. Mac Pro 3,1 and earlier are not.
+
+### Mac Pro 4,1 / 5,1 — firmware update and 4,1 → 5,1 crossflash (experimental)
+
+**Firmware Update** rebuilds the Boot ROM on a clean **144.0.0.0.0** template. It follows
+[Borowski's template guide](https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/)
+and does each step in code:
+
+1. Your serial number and other Fsys entries, your Gaid entries, and the MAC address /
+   LBSN block are moved from your backup into the template.
+2. Every checksum is recomputed.
+3. The result is re-read and checked against your backup before anything is written.
+
+Because NVRAM starts empty, this also clears a firmware password and the stale NVRAM that
+older crossflashes leave behind. You can add EnableGop in the same step.
+
+- **You supply the template.** It contains Apple firmware, so it isn't included: copy
+  `templates.zip` from the guide into `gopforge-live/templates/` on the USB. The app only
+  accepts the known file (checked by SHA-256).
+- **It writes the whole chip, boot block included.** It needs flash mode (hold the power
+  button until the beep) and a CH341A programmer on hand.
+- **4,1 → 5,1 isn't verified yet.** It's tested against synthetic data and real 5,1 images
+  but hasn't been run on a real 4,1, so writing a 4,1 requires Expert Mode.
 
 ### iMac 2009–2011 — graphics firmware (MXM upgrades)
 

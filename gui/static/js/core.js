@@ -21,6 +21,9 @@ export const S = {
   // Graphics flow
   gpu: { step: "card", gpuIndex: null, model: null, modelKey: null, plan: null, cardIdx: 0, rom: null,
          adapters: null, adapter: null, backup: null, flashed: false, error: null },
+  // Firmware rebuild / 4,1 -> 5,1 crossflash flow
+  rb: { templates: null, dump: null, id: null, variant: "none", image: null, report: null, facts: null,
+        written: false, error: null, stale: false, locked: false },
   backups: null,
   library: null,
   libFilter: { q: "", method: "all" },
@@ -34,10 +37,10 @@ export const S = {
 // Keep flow progress across a reload / browser restart within this boot.
 try {
   const saved = JSON.parse(sessionStorage.getItem("gfl-flow") || "null");
-  if (saved) { Object.assign(S.br, saved.br || {}); Object.assign(S.gpu, saved.gpu || {}); }
+  if (saved) { Object.assign(S.br, saved.br || {}); Object.assign(S.gpu, saved.gpu || {}); Object.assign(S.rb, saved.rb || {}); }
 } catch { /* ignore */ }
 export function persist() {
-  try { sessionStorage.setItem("gfl-flow", JSON.stringify({ br: S.br, gpu: S.gpu })); } catch { /* ignore */ }
+  try { sessionStorage.setItem("gfl-flow", JSON.stringify({ br: S.br, gpu: S.gpu, rb: S.rb })); } catch { /* ignore */ }
 }
 
 export const actions = {};          // "name" -> (el, event) => void

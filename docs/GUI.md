@@ -10,6 +10,7 @@ screens instead of menus.
 |------|--------------|
 | **Overview** | This Mac (drawn Mac Pro / iMac), what the disk can do for it, and the status of every tool. |
 | **Boot ROM** *(Mac Pro 4,1 / 5,1)* | Back Up → Inspect → Patch → Flash → Finish. Adds EnableGop to the Boot ROM. |
+| **Firmware Update** *(Mac Pro 4,1 / 5,1)* | Template → Back Up → Build → Flash → Finish. Rebuilds the Boot ROM on a clean 144.0.0.0.0 template with your serial number and MAC address — the 4,1 → 5,1 crossflash (experimental; a 4,1 needs Expert Mode). |
 | **Graphics Card** *(iMac 2009–2011)* | Card → Firmware → Back Up → Flash → Finish. Recommends GOP firmware for your exact card and display. |
 | **Backups** | Every firmware image saved to the USB, with **Restore** for original Boot ROM and graphics-firmware backups. |
 | **ROM Library** | The full IMAC-EFI-BOOT-SCREEN collection, searchable. |

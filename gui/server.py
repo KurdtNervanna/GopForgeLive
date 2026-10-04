@@ -47,6 +47,8 @@ ACTIONS: dict[str, dict] = {
     "write-bootrom":  {"args": ["patched", "dump"], "hw": True, "confirm": "FLASH BOOTROM"},
     "restore-bootrom": {"args": ["backup"], "hw": True, "confirm": "RESTORE BOOTROM"},
     "restore-gpu":    {"args": ["vendor", "index", "backup"], "hw": True, "confirm": "RESTORE"},
+    "rebuild-bootrom": {"args": ["dump", "variant"], "hw": False},
+    "write-rebuilt":  {"args": ["image", "dump"], "hw": True, "confirm": "REBUILD BOOTROM"},
 }
 EXPERT_PHRASE = "I UNDERSTAND"
 
@@ -263,6 +265,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(run_api(args))
         if route == "adapters":
             return self.send_json(run_api(["adapters", q.get("vendor", "")]))
+        if route == "templates":
+            return self.send_json(run_api(["templates"]))
+        if route == "rom-identity":
+            return self.send_json(run_api(["rom-identity", q.get("path", "")]))
         if route == "log":
             return self.send_json(run_api(["log", q.get("n", "400")]))
         if route.startswith("jobs/"):
