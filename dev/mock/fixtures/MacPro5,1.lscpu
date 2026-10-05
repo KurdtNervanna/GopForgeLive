@@ -1,0 +1,10 @@
+Architecture:                       x86_64
+CPU(s):                             24
+Vendor ID:                          GenuineIntel
+Model name:                         Intel(R) Xeon(R) CPU           X5690  @ 3.47GHz
+Thread(s) per core:                 2
+Core(s) per socket:                 6
+Socket(s):                          2
+CPU max MHz:                        3459.0000
+Virtualization:                     VT-x
+L3 cache:                           24 MiB (2 instances)

@@ -4,12 +4,14 @@
 
 ![GopForge Live — Overview on a Mac Pro 5,1](docs/screenshots/overview-macpro.png)
 
-> ⚠️ **Status: `0.3.1-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
+> ⚠️ **Status: `0.4.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
 > 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
 > injector produces a DXE volume byte-identical to dosdude1's DXEInject on a real
-> MacPro5,1 Boot ROM. **No firmware has yet been flashed by GopForge-Live on real
-> hardware** — treat flashing as experimental, follow [docs/TESTING.md](docs/TESTING.md),
-> and don't flash a machine you can't recover ([docs/RECOVERY.md](docs/RECOVERY.md)).
+> MacPro5,1 Boot ROM, and the 4,1→5,1 Crossflash rebuild reproduces a real 5,1's Boot ROM
+> exactly (apart from the emptied NVRAM and the template's stores and checksums). **No
+> firmware has yet been flashed by GopForge-Live on real hardware** — treat flashing as
+> experimental, follow [docs/TESTING.md](docs/TESTING.md), and don't flash a machine you
+> can't recover ([docs/RECOVERY.md](docs/RECOVERY.md)).
 
 GopForge-Live is a guided app (with a text-mode fallback) that runs inside the
 [GRML-FLASH](https://github.com/Ausdauersportler/GRML-FLASH) live environment and
@@ -46,9 +48,19 @@ and an activity log. It falls back to the text wizard automatically if graphics 
 start. See [docs/GUI.md](docs/GUI.md) — including `dev/run-gui-dev.sh`, which runs the
 app against simulated hardware on any Linux/WSL box.
 
+Also on the stick:
+
+- **Full Hardware Report** (Overview): processors, every memory module, PCI and USB
+  devices, Wi-Fi, Bluetooth, disks with SMART health, sensors and EFI boot entries, saved
+  to `gopforge-live/reports/` on the USB.
+- **Graphics-card firmware backups on a Mac Pro**, too (flashing a card stays iMac-only).
+- **Back Up for Submission**: an iMac card the library doesn't cover gets its firmware
+  and a README with its IDs saved to `gopforge-live/submissions/`, and **Post on
+  MacRumors…** opens the iMac graphics-upgrade thread so you can attach it (Ethernet needed).
+
 ### Screenshots
 
-| Mac Pro 4,1 / 5,1 — Boot ROM | |
+| Mac Pro 4,1 / 5,1 — Add GOP cMP | |
 |---|---|
 | ![Boot ROM: backup inspected, choose the EnableGop variant](docs/screenshots/bootrom-patch.png) | ![Boot ROM: patched image validated, ready to flash](docs/screenshots/bootrom-flash.png) |
 | **Patch** — the backup is inspected, then you pick Standard or Direct EnableGop. | **Flash** — every check is shown before anything is written. |

@@ -65,6 +65,11 @@ def shot(page, name: str, scroll_to: str | None = None, top: bool = False):
     print("  ok", name)
 
 
+def overview_ready(page):
+    # the hardware summary (processors, memory, Boot ROM) loads after the page appears
+    page.wait_for_function("!document.querySelector('#page').innerText.includes('Detecting')", timeout=30000)
+
+
 def act(page, a: str):
     page.locator(f'[data-act="{a}"]:not([disabled])').first.click()
 
@@ -75,7 +80,7 @@ def run(browser):
     print("Mac Pro 5,1 + Radeon RX Vega 64")
     serve("MacPro5,1", "vega64")
     page = browser.new_page(viewport=VIEW, device_scale_factor=2, color_scheme="dark")
-    page.goto(URL + "#/overview"); page.wait_for_selector("#page .hero, #page h1")
+    page.goto(URL + "#/overview"); page.wait_for_selector("#page .hero, #page h1"); overview_ready(page)
     shot(page, "overview-macpro")
     page.goto(URL + "#/bootrom"); act(page, "br-dump")
     page.wait_for_selector('[data-act="br-patch"]:not([disabled])', timeout=30000)
@@ -94,7 +99,7 @@ def run(browser):
     print("iMac12,2 (27-inch) + Radeon Pro WX 7100 Mobile")
     serve("iMac12,2", "wx7100")
     page = browser.new_page(viewport=VIEW, device_scale_factor=2, color_scheme="light")
-    page.goto(URL + "#/overview"); page.wait_for_selector("#page .hero, #page h1")
+    page.goto(URL + "#/overview"); page.wait_for_selector("#page .hero, #page h1"); overview_ready(page)
     if page.evaluate("document.documentElement.dataset.theme") != "light":
         act(page, "toggle-theme")
     shot(page, "overview-imac-light")

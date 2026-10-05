@@ -86,6 +86,10 @@ case "$tool" in
       fi
     done < <(gpus) ;;
 
+  lscpu)   # fixture, so the simulated Mac doesn't report the dev box's CPU
+    fixture="$FIX/${GFL_MOCK_MODEL:-MacPro5,1}.lscpu"
+    [ -f "$fixture" ] && cat "$fixture" ;;
+
   lsusb)
     fixture="$FIX/${GFL_MOCK_MODEL:-MacPro5,1}.usb"
     [ "${1:-}" = -t ] && exit 0
