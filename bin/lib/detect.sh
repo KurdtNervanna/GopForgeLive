@@ -111,7 +111,9 @@ detect_report() {
   detect_gpus || true        # "no GPU found" is a result, not a failure
   {
     echo "System model : ${GFL_MAC_MODEL:-<not an Apple system / unknown>}"
-    echo "flashrom     : $(command -v flashrom >/dev/null 2>&1 && flashrom --version 2>/dev/null | head -n1 || echo 'missing')"
+    local frv=""   # flashrom --version exits non-zero on some builds, so don't chain on its status
+    command -v flashrom >/dev/null 2>&1 && frv="$(flashrom --version 2>/dev/null | head -n1 || true)"
+    echo "flashrom     : ${frv:-$(command -v flashrom >/dev/null 2>&1 && echo present || echo missing)}"
     echo "amdvbflash   : $([ -n "${GFL_AMDVBFLASH:-}" ] && echo "present  ${GFL_AMDVBFLASH}" || echo 'missing (need GRML-FLASH flash/video)')"
     echo "nvflash      : $([ -n "${GFL_NVFLASH:-}" ] && echo "present  ${GFL_NVFLASH}" || echo 'missing (need GRML-FLASH flash/video)')"
     echo

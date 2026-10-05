@@ -49,15 +49,21 @@ template_find() {
   return 1
 }
 
+# Mask serial numbers in a rebuild/identity JSON report (keeps the last 4 characters).
+redact_ids() {
+  sed -E 's/"(serial|lbsn)": "[^"]*([^"]{4})"/"\1": "…\2"/g'
+}
+
 # Rebuild <dump> on the template. Echoes the new image path; the JSON report from
-# bootrom_rebuild.py goes to the log (and to $GFL_REBUILD_REPORT when set).
+# bootrom_rebuild.py goes to the log with serials masked (and in full to
+# $GFL_REBUILD_REPORT when set, which the app shows on screen).
 bootrom_rebuild() { # dump
   local dump="$1" tpl out rep rc=0
   tpl="$(template_find)" || { err "no verified 144.0.0.0.0 template in $GFL_TEMPLATE_DIR"; return 3; }
   out="${dump%.rom}-144.rom"
   info "rebuilding $(basename "$dump") on the 144.0.0.0.0 template …"
   rep="$(python3 "$GFL_REBUILD_PY" rebuild "$tpl" "$dump" "$out")" || rc=$?
-  printf '%s\n' "$rep" >>"$GFL_LOG"
+  redact_ids <<<"$rep" >>"$GFL_LOG"     # logs get shared
   [ -n "${GFL_REBUILD_REPORT:-}" ] && printf '%s\n' "$rep" >"$GFL_REBUILD_REPORT"
   if [ "$rc" -ne 0 ]; then
     rm -f "$out"; err "rebuild refused: $(sed -n 's/.*"error": "\([^"]*\)".*/\1/p' <<<"$rep")"; return "$rc"
@@ -218,7 +224,15 @@ bootrom_inject() { # dump variant
     warn "Linux DXEInject not found on this USB — GopForge will look for its own copy"
   fi
   info "GopForge injecting EnableGop ($variant) …"
-  if ! bash "$GFL_GOPFORGE" "${args[@]}" >>"$GFL_LOG" 2>&1; then
+  # Pass the cached driver explicitly (else GopForge first looks in ./ and logs a
+  # confusing "fetching" line), and drop its macOS hand-off checklist (Rom Dump etc.):
+  # here the app does the flashing, with its own checks.
+  local ffs="$GFL_GOPFORGE_TOOLS/EnableGop.ffs" gfout rc=0
+  [ "$variant" = direct ] && ffs="$GFL_GOPFORGE_TOOLS/EnableGopDirect.ffs"
+  [ -f "$ffs" ] && args+=(--ffs "$ffs")
+  gfout="$(bash "$GFL_GOPFORGE" "${args[@]}" 2>&1)" || rc=$?
+  sed -e $'s/\x1b\\[[0-9;]*m//g' -e '/Before you flash — checklist/,$d' <<<"$gfout" >>"$GFL_LOG"
+  if [ "$rc" -ne 0 ]; then
     err "GopForge injection failed — see $GFL_LOG"; rm -f "$out"; return 1
   fi
   # GopForge guarantees size-invariance; re-check against the source size.
