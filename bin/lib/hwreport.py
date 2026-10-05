@@ -92,6 +92,34 @@ def usb_devices():
 
 
 # --- summary --------------------------------------------------------------------
+# Macs report DIMM makers as JEDEC codes ("0x80CE") and part numbers as hex ASCII.
+JEDEC = {"80CE": "Samsung", "80AD": "SK hynix", "802C": "Micron", "80FE": "Elpida", "0198": "Kingston",
+         "830B": "Nanya", "859B": "Crucial", "8551": "Qimonda", "80C1": "Infineon"}
+
+
+def jedec_name(s):
+    h = re.sub(r"^0x", "", s.strip(), flags=re.I).upper()
+    if not re.fullmatch(r"[0-9A-F]{4,}", h):
+        return s.strip()
+    for k in (h[:4], h[2:4] + h[:2]):          # bank+id, or byte-swapped (e.g. "CE80")
+        if k in JEDEC:
+            return JEDEC[k]
+    return s.strip()
+
+
+def hex_text(s):
+    s = s.strip()
+    m = re.fullmatch(r"0x([0-9A-Fa-f]{8,})", s)
+    if m and len(m.group(1)) % 2 == 0:
+        try:
+            t = bytes.fromhex(m.group(1)).decode("ascii").strip(" \x00")
+            if t.isprintable():
+                return t
+        except ValueError:
+            pass
+    return s
+
+
 def summary():
     s = {"collected": time.strftime("%Y-%m-%d %H:%M:%S")}
     t0, t1, t2 = (dmi(0) or [{}])[0], (dmi(1) or [{}])[0], (dmi(2) or [{}])[0]
@@ -110,10 +138,17 @@ def summary():
                      "max_mhz": b.get("Max Speed", ""), "mhz": b.get("Current Speed", "")})
     lscpu = dict(l.split(":", 1) for l in run(["lscpu"]).splitlines() if ":" in l)
     lscpu = {k.strip(): v.strip() for k, v in lscpu.items()}
-    if not cpus and lscpu.get("Model name"):
-        n = int(lscpu.get("Socket(s)", "1") or 1)
-        cpus = [{"socket": f"CPU {i + 1}", "name": lscpu["Model name"], "cores": lscpu.get("Core(s) per socket", ""),
-                 "threads": "", "max_mhz": lscpu.get("CPU max MHz", ""), "mhz": ""} for i in range(n)]
+    # Apple's SMBIOS lists one "processor" per hardware thread (24 on a 12-core Mac Pro),
+    # so when lscpu knows the socket count, trust it and build one entry per socket.
+    sockets = int(lscpu.get("Socket(s)", "0") or 0) if lscpu.get("Socket(s)", "").isdigit() else 0
+    if lscpu.get("Model name") and (not cpus or (sockets and len(cpus) != sockets)):
+        n = sockets or 1
+        cores = lscpu.get("Core(s) per socket", "")
+        tpc = lscpu.get("Thread(s) per core", "")
+        threads = str(int(cores) * int(tpc)) if cores.isdigit() and tpc.isdigit() else ""
+        mhz = lscpu.get("CPU max MHz", "").split(".")[0]
+        cpus = [{"socket": f"CPU {chr(65 + i)}", "name": " ".join(lscpu["Model name"].split()), "cores": cores,
+                 "threads": threads, "max_mhz": f"{mhz} MHz" if mhz else "", "mhz": ""} for i in range(n)]
     s["cpus"] = cpus
     s["cpu_totals"] = {"logical": lscpu.get("CPU(s)", ""), "sockets": lscpu.get("Socket(s)", str(len(cpus)) if cpus else ""),
                        "cores_per_socket": lscpu.get("Core(s) per socket", ""), "threads_per_core": lscpu.get("Thread(s) per core", ""),
@@ -129,7 +164,7 @@ def summary():
         dimms.append({"slot": b.get("Locator", ""), "bank": b.get("Bank Locator", ""), "size_mib": size,
                       "size": human_mib(size), "type": b.get("Type", ""),
                       "speed": b.get("Configured Memory Speed") or b.get("Configured Clock Speed") or b.get("Speed", ""),
-                      "manufacturer": b.get("Manufacturer", ""), "part": b.get("Part Number", "").strip(),
+                      "manufacturer": jedec_name(b.get("Manufacturer", "")), "part": hex_text(b.get("Part Number", "")),
                       "serial": b.get("Serial Number", "")})
     arr = (dmi(16) or [{}])[0]
     total = sum(d["size_mib"] for d in dimms)
