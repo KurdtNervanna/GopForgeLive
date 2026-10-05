@@ -71,7 +71,10 @@ gfl_build_module() {
   MODROOT="$(mktemp -d)"
   say "assembling additive module"
   install -d "$MODROOT/opt/gopforge-live"
-  for d in bin catalog docs roms gui; do rsync -a "$REPO/$d" "$MODROOT/opt/gopforge-live/"; done
+  # No Python caches: they're machine-specific and embed the build machine's paths.
+  for d in bin catalog docs roms gui; do
+    rsync -a --exclude '__pycache__' --exclude '*.pyc' "$REPO/$d" "$MODROOT/opt/gopforge-live/"
+  done
   install -d "$MODROOT/opt/gopforge-live/vendor"
   # dosdude1's macOS DXEInject is not redistributed (and can't run here — the Linux
   # build below replaces it); GopForge's git metadata isn't needed either.
