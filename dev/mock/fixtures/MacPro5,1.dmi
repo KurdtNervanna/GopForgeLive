@@ -1,0 +1,149 @@
+# dmidecode 3.5
+Getting SMBIOS data from sysfs.
+SMBIOS 2.4 present.
+
+Handle 0x0000, DMI type 0, 24 bytes
+BIOS Information
+	Vendor: Apple Inc.
+	Version: 144.0.0.0.0
+	Release Date: 04/12/2019
+	ROM Size: 4 MB
+	BIOS Revision: 0.1
+
+Handle 0x0001, DMI type 1, 27 bytes
+System Information
+	Manufacturer: Apple Inc.
+	Product Name: MacPro5,1
+	Version: 0.0
+	Serial Number: G8FAKE000TEST
+	UUID: 00000000-0000-1000-8000-0017F2FAFE01
+	SKU Number: System SKUNumber
+	Family: Mac Pro
+
+Handle 0x0002, DMI type 2, 16 bytes
+Base Board Information
+	Manufacturer: Apple Inc.
+	Product Name: Mac-F221BEC8
+	Version: Proto
+	Serial Number: J50FAKEBOARD0
+
+Handle 0x0003, DMI type 3, 21 bytes
+Chassis Information
+	Manufacturer: Apple Inc.
+	Type: Tower
+	Version: Mac-F221BEC8
+
+Handle 0x0010, DMI type 4, 40 bytes
+Processor Information
+	Socket Designation: CPU A
+	Type: Central Processor
+	Family: Xeon
+	Manufacturer: Intel(R) Corporation
+	Version: Intel(R) Xeon(R) CPU           X5690  @ 3.47GHz
+	Max Speed: 3460 MHz
+	Current Speed: 3460 MHz
+	Status: Populated, Enabled
+	Core Count: 6
+	Core Enabled: 6
+	Thread Count: 12
+
+Handle 0x0011, DMI type 4, 40 bytes
+Processor Information
+	Socket Designation: CPU B
+	Type: Central Processor
+	Family: Xeon
+	Manufacturer: Intel(R) Corporation
+	Version: Intel(R) Xeon(R) CPU           X5690  @ 3.47GHz
+	Max Speed: 3460 MHz
+	Current Speed: 3460 MHz
+	Status: Populated, Enabled
+	Core Count: 6
+	Core Enabled: 6
+	Thread Count: 12
+
+Handle 0x0020, DMI type 16, 15 bytes
+Physical Memory Array
+	Location: System Board Or Motherboard
+	Use: System Memory
+	Maximum Capacity: 128 GB
+	Number Of Devices: 8
+
+Handle 0x0021, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 1
+	Bank Locator: CPU A
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0001
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0022, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 2
+	Bank Locator: CPU A
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0002
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0023, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 3
+	Bank Locator: CPU A
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0003
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0024, DMI type 17, 27 bytes
+Memory Device
+	Size: No Module Installed
+	Locator: DIMM 4
+	Bank Locator: CPU A
+	Type: Unknown
+
+Handle 0x0025, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 5
+	Bank Locator: CPU B
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0005
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0026, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 6
+	Bank Locator: CPU B
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0006
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0027, DMI type 17, 27 bytes
+Memory Device
+	Size: 16384 MB
+	Locator: DIMM 7
+	Bank Locator: CPU B
+	Type: DDR3
+	Speed: 1333 MT/s
+	Manufacturer: Samsung
+	Serial Number: 0xFAKE0007
+	Part Number: M393B2G70BH0-YH9
+
+Handle 0x0028, DMI type 17, 27 bytes
+Memory Device
+	Size: No Module Installed
+	Locator: DIMM 8
+	Bank Locator: CPU B
+	Type: Unknown

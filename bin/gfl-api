@@ -68,6 +68,8 @@ in_workdir() { # path
 }
 
 allow_gpu()     { [ "${GFL_ALLOW_GPU:-0}" = 1 ]     || truthy "$GFL_EXPERT"; }
+# Reading a card's firmware is harmless, so Mac Pros may back up (not flash) too.
+allow_gpu_backup() { allow_gpu || [ "${GFL_MACHINE_CLASS:-}" = cmp-bootrom ]; }
 allow_bootrom() { [ "${GFL_ALLOW_BOOTROM:-0}" = 1 ] || truthy "$GFL_EXPERT"; }
 
 setup() {
@@ -121,9 +123,25 @@ cmd_status() {
       library:{roms:($roms|tonumber)}, cmdline:$cmd}'
 }
 
-cmd_hardware() { # plain-text report for the "details" view
-  local t; t="$(detect_report 2>&1 || true)"
-  emit --arg t "$t" '{ok:true, text:$t}'
+# Full hardware report: summary JSON + the text report, which is also saved to
+# gopforge-live/reports/ on the USB (it includes serial numbers and MAC addresses).
+cmd_hardware() {
+  local f j
+  f="$GFL_WORKDIR/reports/hardware-$(date +%Y%m%d-%H%M%S).txt"
+  if j="$(python3 "$GFL_LIB/hwreport.py" save "$f" 2>/dev/null)" && [ -n "$j" ]; then
+    sync 2>/dev/null || true
+    _log API "hardware report saved: $f"
+    printf '%s\n' "$j" | jq -c '{ok:true} + .'
+  else
+    local t; t="$(detect_report 2>&1 || true)"
+    emit --arg t "$t" '{ok:true, text:$t, saved:"", partial:true}'
+  fi
+}
+
+cmd_hw_summary() { # quick facts for the overview (nothing saved)
+  local j; j="$(python3 "$GFL_LIB/hwreport.py" summary 2>/dev/null)" || j=""
+  [ -n "$j" ] || fail hw_failed "hardware summary unavailable"
+  printf '%s\n' "$j" | jq -c '{ok:true, system, bootrom, cpus, cpu_totals, memory:(.memory|del(.modules[]?.serial))}'
 }
 
 cmd_gpus() {
@@ -223,7 +241,7 @@ cmd_adapters() { # amd|nvidia
 
 cmd_backup_gpu() { # amd|nvidia index
   need vendor "${1:-}"; need index "${2:-}"
-  allow_gpu || refuse gated "GPU vBIOS work is not offered on this machine (enable Expert mode to override)"
+  allow_gpu_backup || refuse gated "graphics firmware backups are offered on supported iMacs and Mac Pro 4,1/5,1 (enable Expert mode to override)"
   local out
   case "$1" in
     amd)    out="$(amd_backup "$2")" || fail backup_failed "reading the current vBIOS failed — see the log" ;;
@@ -231,6 +249,85 @@ cmd_backup_gpu() { # amd|nvidia index
     *)      fail usage "vendor must be amd or nvidia" 64 ;;
   esac
   emit --argjson f "$(file_json "$out")" '{ok:true, backup:$f}'
+}
+
+# Where graphics firmware is worth sending. GopForge Live never uploads anything itself.
+GFL_SUBMIT_DESTINATIONS='[
+ {"name":"MacRumors — 2011 iMac Graphics Card Upgrade",
+  "url":"https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/",
+  "how":"Where the IMAC-EFI-BOOT-SCREEN maintainer builds GOP/EnableGop firmware for new iMac cards. Post the .rom with README.txt and ask for support.",
+  "for":"imac"},
+ {"name":"TechPowerUp VGA BIOS Collection",
+  "url":"https://www.techpowerup.com/vgabios/",
+  "how":"The public archive of graphics-card firmware. Uploads go through GPU-Z on Windows, or the “VGA Bios collection – Bios uploading” forum thread: https://www.techpowerup.com/forums/threads/vga-bios-collection-bios-uploading.184704/",
+  "for":"any"}
+]'
+
+# Package a graphics-firmware backup for sharing: its own folder on the USB with the
+# .rom and a README describing the Mac and card (no serial numbers).
+cmd_gpu_submission() { # amd|nvidia index backup
+  need vendor "${1:-}"; need index "${2:-}"; need backup "${3:-}"
+  local vendor="$1" idx="$2" b="$3"
+  allow_gpu_backup || refuse gated "not offered on this machine"
+  in_workdir "$b" || fail bad_file "not a file on this USB: $b"
+  case "$b" in */video/Backups/*.rom) : ;; *) fail bad_file "not a graphics firmware backup: $(basename "$b")" ;; esac
+  detect_gpus >/dev/null 2>&1 || true
+  GFL_MODEL_KEY="${GFL_MAC_MODEL:-}"; model_profile
+  local vid; case "$vendor" in amd) vid=1002;; nvidia) vid=10de;; *) fail usage "vendor must be amd or nvidia" 64;; esac
+  local i gpu_lines="" first=""
+  for i in "${!GFL_GPU_BDF[@]}"; do
+    [ "${GFL_GPU_VENDOR[$i]}" = "$vid" ] || continue
+    gpu_lines+="  ${GFL_GPU_BDF[$i]}  ${GFL_GPU_VENDOR[$i]}:${GFL_GPU_DEVICE[$i]}  subsystem ${GFL_GPU_SUBSYS[$i]}  ${GFL_GPU_NAME[$i]}"$'\n'
+    [ -n "$first" ] || first="${GFL_GPU_DEVICE[$i]}-${GFL_GPU_SUBSYS[$i]//:/}"
+  done
+  local romfacts; romfacts="$(python3 - "$b" <<'PY'
+import json, re, struct, sys
+d = open(sys.argv[1], "rb").read()
+o = {"size": len(d)}
+if d[:2] == b"\x55\xaa" and len(d) > 0x1A:
+    p = struct.unpack_from("<H", d, 0x18)[0]
+    if d[p:p + 4] == b"PCIR":
+        o["pci_id"] = "%04x:%04x" % struct.unpack_from("<HH", d, p + 4)
+m = re.search(rb"113-[0-9A-Za-z_-]{5,}", d[:0x20000])
+if m: o["part_number"] = m.group(0).decode()
+m = re.search(rb"Version (\d+\.\d+\.\d+\.\d+)", d[:0x40000])
+if m: o["nv_version"] = m.group(1).decode()
+print(json.dumps(o))
+PY
+)" || romfacts='{}'
+  local ts dir rom raw
+  ts="$(date +%Y%m%d-%H%M%S)"
+  dir="$GFL_WORKDIR/submissions/$ts-$vendor-${first:-unknown}"
+  mkdir -p "$dir" || fail write_failed "couldn't create $dir"
+  rom="$dir/$(basename "$b")"; cp "$b" "$rom"
+  case "$vendor" in amd) raw="$(amd_list 2>/dev/null || true)";; nvidia) raw="$(nv_list 2>/dev/null || true)";; esac
+  {
+    echo "GopForge Live — graphics firmware submission"
+    echo "Created $(date '+%Y-%m-%d %H:%M') with GopForge Live $GFL_VERSION (https://github.com/KurdtNervanna/GopForgeLive)"
+    echo
+    echo "Mac            : ${GFL_MAC_MODEL:-unknown}${GFL_MODEL_NOTE:+ — $GFL_MODEL_NOTE}"
+    echo "Firmware file  : $(basename "$rom")"
+    echo "  size         : $(file_size "$rom") bytes"
+    echo "  sha256       : $(sha256_of "$rom")"
+    jq -r '"  PCI ID in ROM: \(.pci_id // "—")\n  part number  : \(.part_number // .nv_version // "—")"' <<<"$romfacts"
+    echo "Adapter        : #$idx ($vendor)"
+    echo
+    echo "Graphics cards in this Mac (lspci):"
+    printf '%s' "${gpu_lines:-  (none matched)}"
+    echo
+    echo "Flasher's adapter list:"
+    sed 's/^/  /' <<<"$raw"
+    echo
+    echo "Where to send it:"
+    jq -r --arg c "${GFL_MACHINE_CLASS:-}" \
+      '.[] | select(.for == "any" or $c != "cmp-bootrom") | "  • \(.name)\n    \(.url)\n    \(.how)\n"' <<<"$GFL_SUBMIT_DESTINATIONS"
+    echo "No serial numbers are included in this folder."
+  } >"$dir/README.txt"
+  sync 2>/dev/null || true
+  _log API "gpu-submission $vendor adapter=$idx -> $dir"
+  emit --arg d "$dir" --argjson rom "$(file_json "$rom")" --arg readme "$dir/README.txt" \
+       --argjson facts "$romfacts" --argjson dest "$GFL_SUBMIT_DESTINATIONS" \
+       '{ok:true, folder:$d, rom:$rom, readme:$readme, facts:$facts, destinations:$dest}'
 }
 
 rom_method_for_file() { # relfile -> method from the matrix (first match)
@@ -553,6 +650,8 @@ main() {
     write-bootrom)   cmd_write_bootrom "$@" ;;
     restore-bootrom) cmd_restore_bootrom "$@" ;;
     restore-gpu)     cmd_restore_gpu "$@" ;;
+    hw-summary)      cmd_hw_summary ;;
+    gpu-submission)  cmd_gpu_submission "$@" ;;
     templates)       cmd_templates ;;
     rom-identity)    cmd_rom_identity "$@" ;;
     rebuild-bootrom) cmd_rebuild_bootrom "$@" ;;

@@ -48,6 +48,7 @@ ACTIONS: dict[str, dict] = {
     "restore-bootrom": {"args": ["backup"], "hw": True, "confirm": "RESTORE BOOTROM"},
     "restore-gpu":    {"args": ["vendor", "index", "backup"], "hw": True, "confirm": "RESTORE"},
     "rebuild-bootrom": {"args": ["dump", "variant"], "hw": False},
+    "gpu-submission": {"args": ["vendor", "index", "backup"], "hw": False},
     "write-rebuilt":  {"args": ["image", "dump"], "hw": True, "confirm": "REBUILD BOOTROM"},
 }
 EXPERT_PHRASE = "I UNDERSTAND"
@@ -63,6 +64,7 @@ class Session:
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
         self.log_path: str | None = None
+        self.pending: list[str] = []      # notes made before the log path is known
 
     def env(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         env = os.environ.copy()
@@ -76,12 +78,15 @@ class Session:
         """Append a server event to the USB log (best effort)."""
         line = f"{time.strftime('%H:%M:%S')} [GUI] {msg}\n"
         sys.stderr.write(line)
-        if self.log_path:
-            try:
-                with open(self.log_path, "a", encoding="utf-8") as fh:
-                    fh.write(line)
-            except OSError:
-                pass
+        if not self.log_path:
+            self.pending.append(line)
+            return
+        try:
+            with open(self.log_path, "a", encoding="utf-8") as fh:
+                fh.write("".join(self.pending) + line)
+            self.pending = []
+        except OSError:
+            pass
 
     def busy_hw(self) -> Job | None:
         with self.lock:
@@ -256,7 +261,9 @@ class Handler(BaseHTTPRequestHandler):
                 res["expert"] = SESSION.expert
                 res["busy"] = bool(SESSION.busy_hw())
             return self.send_json(res)
-        if route in ("hardware", "gpus", "library", "backups"):
+        if route == "hardware":          # runs inxi/lshw/smartctl too — give it time
+            return self.send_json(run_api(["hardware"], timeout=240))
+        if route in ("gpus", "library", "backups", "hw-summary"):
             return self.send_json(run_api([route]))
         if route == "model":
             return self.send_json(run_api(["model"] + ([q["key"]] if q.get("key") else [])))
@@ -335,9 +342,22 @@ class Handler(BaseHTTPRequestHandler):
                     return 0.0
             vw, vh, sw, sh, dpr = (num(k) for k in ("vw", "vh", "sw", "sh", "dpr"))
             over = vw > sw + 2 or vh > sh + 2
+            mismatch = sw > 0 and sh > 0 and (abs(vw - sw) > 2 or abs(vh - sh) > 2)
             SESSION.note(f"display: viewport {vw:g}x{vh:g} CSS px, screen {sw:g}x{sh:g}, "
-                         f"devicePixelRatio {dpr:g}" + ("  !! WINDOW LARGER THAN SCREEN" if over else ""))
-            return self.send_json({"ok": True, "overflow": over})
+                         f"devicePixelRatio {dpr:g}" + ("  !! WINDOW DOESN'T MATCH THE SCREEN" if mismatch else ""))
+            # The kiosk has no window manager, so a wrong-sized window can't be fixed from
+            # inside the page. Ask gui/session.sh for ONE relaunch at the size Firefox
+            # itself reports for the screen (screen.* is already in CSS px).
+            relaunch = os.environ.get("GFL_RELAUNCH_FILE", "")
+            if mismatch and relaunch and not SESSION.mock and not getattr(SESSION, "relaunched", False):
+                SESSION.relaunched = True
+                try:
+                    Path(relaunch).write_text(f"{int(sw)} {int(sh)}\n")
+                    SESSION.note(f"display: relaunching the window at {int(sw)}x{int(sh)} CSS px")
+                    threading.Timer(1.0, lambda: subprocess.run(["pkill", "-f", "firefox"], check=False)).start()
+                except OSError:
+                    pass
+            return self.send_json({"ok": True, "overflow": over, "mismatch": mismatch})
 
         return self.send_json({"ok": False, "code": "no_route", "error": route}, 404)
 
@@ -359,6 +379,8 @@ def main() -> None:
     if not shutil.which("bash"):
         sys.exit("bash is required")
 
+    if os.environ.get("GFL_DISPLAY_INFO"):
+        SESSION.note(f"display (launcher): {os.environ['GFL_DISPLAY_INFO']}")
     # machine/tool snapshot into the USB log, without delaying the first page
     threading.Thread(target=run_api, args=(["snapshot"],), daemon=True).start()
 

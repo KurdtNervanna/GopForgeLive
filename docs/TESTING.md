@@ -14,7 +14,7 @@ flash, one stage at a time. **Stop at any stage that doesn't look right.**
    - flashrom: *Available*
    - EnableGop drivers: *Standard + Direct cached*
    - EnableGop injector: *Ready*
-3. **Boot ROM › Back Up Boot ROM.** The backup should be **4,194,304 bytes**, and all four
+3. **Add GOP cMP › Back Up Boot ROM.** The backup should be **4,194,304 bytes**, and all four
    Inspect checks should be green.
 
 **Stage 2: patch (still safe).** This only writes a new file to the USB.
@@ -45,7 +45,7 @@ flashrom reports this as `PR1: 0x00150000-0x01ffffff is read-only`, and the app 
 If Inspect says **EnableGop is already installed**, this Mac was patched before (for
 example with GopForge on macOS), and there's nothing to do.
 
-## Firmware Update (rebuild / 4,1 → 5,1 crossflash)
+## 4,1→5,1 Crossflash (and 5,1 rebuild)
 
 This is experimental. It rewrites the whole chip, so treat it like stage 3 above: flash
 mode, a CH341A on hand, and a backup copied off the USB.
@@ -53,12 +53,13 @@ mode, a CH341A on hand, and a backup copied off the USB.
 1. Copy `templates.zip` from the
    [template guide](https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/)
    into `gopforge-live/templates/` on the USB.
-2. Boot the USB in flash mode, then open **Firmware Update** and choose **Back Up**. The
+2. Boot the USB in flash mode, then open **4,1→5,1 Crossflash** and choose **Back Up**. The
    Build step shows the current firmware, serial number and LBSN taken from your backup.
 3. **Build Firmware Image.** Every check on the Flash step must pass.
 4. **First test it without writing.** Send back the log, the backup and the `-144` image.
    Rebuilding an existing 5,1 should reproduce your current ROM everywhere except the
-   emptied NVRAM.
+   emptied NVRAM, the template's Fsys/Gaid stores and the checksums and build stamp of
+   the last volume (confirmed on a real 5,1).
 5. Only then write it. A 4,1 needs Expert Mode, because the 4,1 path hasn't been verified on
    real hardware yet.
 
@@ -78,4 +79,8 @@ mode, a CH341A on hand, and a backup copied off the USB.
   a shell.
 - Logs: `gopforge-live/gopforge-live.log` on the USB. If X fails, also look in
   `/run/gopforge-gui/`.
+- **Overview › Full Hardware Report** saves `gopforge-live/reports/hardware-*.txt`
+  (CPUs, memory, PCI/USB, Wi-Fi, disks). It includes serial numbers and MAC addresses.
+- If the app fills only part of the screen, add `gfl.window=1920x1080` (your screen
+  size) to the boot line.
 - See [RECOVERY.md](RECOVERY.md).

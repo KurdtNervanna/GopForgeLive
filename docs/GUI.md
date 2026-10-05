@@ -8,10 +8,10 @@ screens instead of menus.
 
 | Page | What it does |
 |------|--------------|
-| **Overview** | This Mac (drawn Mac Pro / iMac), what the disk can do for it, and the status of every tool. |
-| **Boot ROM** *(Mac Pro 4,1 / 5,1)* | Back Up → Inspect → Patch → Flash → Finish. Adds EnableGop to the Boot ROM. |
-| **Firmware Update** *(Mac Pro 4,1 / 5,1)* | Template → Back Up → Build → Flash → Finish. Rebuilds the Boot ROM on a clean 144.0.0.0.0 template with your serial number and MAC address — the 4,1 → 5,1 crossflash (experimental; a 4,1 needs Expert Mode). |
-| **Graphics Card** *(iMac 2009–2011)* | Card → Firmware → Back Up → Flash → Finish. Recommends GOP firmware for your exact card and display. |
+| **Overview** | This Mac (drawn Mac Pro / iMac), its processors, memory and Boot ROM version, what the disk can do for it, and the status of every tool. **Full Hardware Report** lists CPUs, memory modules, PCI/USB devices, Wi-Fi, Bluetooth, disks and sensors, and saves it to `gopforge-live/reports/` on the USB. |
+| **Add GOP cMP** *(Mac Pro 4,1 / 5,1)* | Back Up → Inspect → Patch → Flash → Finish. Adds EnableGop to the Boot ROM. |
+| **4,1→5,1 Crossflash** *(Mac Pro 4,1 / 5,1)* | Template → Back Up → Build → Flash → Finish. Rebuilds the Boot ROM on a clean 144.0.0.0.0 template with your serial number and MAC address — the 4,1 → 5,1 crossflash (experimental; a 4,1 needs Expert Mode). |
+| **Graphics Card** *(iMac 2009–2011)* | Card → Firmware → Back Up → Flash → Finish. Recommends GOP firmware for your exact card and display. If nothing matches, **Back Up for Submission** saves the card's firmware plus a README with its IDs to `gopforge-live/submissions/` and points you to where to share it. On a Mac Pro this page only backs up the card's firmware. |
 | **Backups** | Every firmware image saved to the USB, with **Restore** for original Boot ROM and graphics-firmware backups. |
 | **ROM Library** | The full IMAC-EFI-BOOT-SCREEN collection, searchable. |
 | **Activity** | The session log (also saved to the USB). |
@@ -46,8 +46,11 @@ to turn the Mac off.
 On screens 2400 px wide or more (the 27" iMac's 2560×1440), the app renders at 1.5×, and
 at 2× from 3600 px. With no window manager, `gui/session.sh` sizes the Firefox window to
 the screen *in CSS pixels* (screen ÷ scale). If the window still ends up larger than the
-screen, the app pins itself to the visible area. Each session logs its real viewport to
-the USB log (`display: viewport …`).
+screen, the app pins itself to the visible area; if it comes up the wrong size (one Mac
+Pro got 1024×576 on a 1920×1080 screen), Firefox is relaunched once, with a fresh
+profile, at the size it measured itself. Each session logs its real viewport to the USB
+log (`display: viewport …`). To force a size, add `gfl.window=WIDTHxHEIGHT` (CSS pixels)
+to the boot line.
 
 ## If the app doesn't appear
 

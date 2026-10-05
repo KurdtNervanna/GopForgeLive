@@ -293,6 +293,22 @@ flow_dumps() {
   esac
 }
 
+# Full hardware report (CPUs, memory modules, graphics, Wi-Fi, Bluetooth, drives …),
+# shown and saved to gopforge-live/reports/ on the USB.
+flow_hardware() {
+  local t f
+  t="$(mktemp)"; f="$GFL_WORKDIR/reports/hardware-$(date +%Y%m%d-%H%M%S).txt"
+  info "collecting the hardware report (up to a minute) …"
+  if python3 "$GFL_LIB/hwreport.py" save "$f" >/dev/null 2>&1; then
+    { echo "Saved to: $f"; echo "(includes serial numbers and MAC addresses)"; echo; cat "$f"; } >"$t"
+    _log TUI "hardware report saved: $f"
+  else
+    { detect_report; echo; echo "(full report unavailable — basic detection only)"; } >"$t" 2>&1
+  fi
+  { echo; echo "Machine class: $GFL_MACHINE_CLASS (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU expert=$GFL_EXPERT)"; echo "$GFL_MACHINE_NOTE"; } >>"$t"
+  ui_textbox "Hardware report" "$t"; rm -f "$t"
+}
+
 # Put a saved backup back. The write and all of its gates live in gfl-api
 # (restore-bootrom / restore-gpu), shared with the graphical app.
 flow_restore() {
@@ -351,7 +367,7 @@ main_menu() {
 
     local args=( detect "Detect hardware (full report)" )
     [ "$ag" = 1 ] && args+=( gpu "GPU vBIOS GOP flash (guided)" )
-    [ "$ab" = 1 ] && args+=( rom "Mac BootROM EnableGop (dump→patch→flash)" )
+    [ "$ab" = 1 ] && args+=( rom "Add GOP cMP — Boot ROM EnableGop (dump→patch→flash)" )
     { [ "$ag" = 1 ] || [ "$ab" = 1 ]; } && args+=( dump "Read-only backups" restore "Restore a backup" )
     if [ "$GFL_ALLOW_BOOTROM" = 0 ] && [ "$GFL_ALLOW_GPU" = 0 ]; then
       if [ "$GFL_EXPERT" = 1 ]; then args+=( expert "Expert override: ON — disable it" )
@@ -372,7 +388,7 @@ $gate
 
 $GFL_MACHINE_NOTE" "${args[@]}")" || break
     case "$c" in
-      detect) local t; t="$(mktemp)"; { detect_report; echo; echo "Machine class: $GFL_MACHINE_CLASS (bootrom=$GFL_ALLOW_BOOTROM gpu=$GFL_ALLOW_GPU expert=$GFL_EXPERT)"; echo "$GFL_MACHINE_NOTE"; } >"$t" 2>&1; ui_textbox "Hardware" "$t"; rm -f "$t" ;;
+      detect) flow_hardware ;;
       gpu)    flow_gpu_vbios ;;
       rom)    flow_bootrom ;;
       dump)   flow_dumps ;;

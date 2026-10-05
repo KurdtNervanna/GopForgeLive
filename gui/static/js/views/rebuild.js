@@ -1,4 +1,4 @@
-// Firmware Update (Mac Pro 4,1 / 5,1): rebuild the Boot ROM on a clean 144.0.0.0.0
+// 4,1→5,1 Crossflash (Mac Pro 4,1 / 5,1): rebuild the Boot ROM on a clean 144.0.0.0.0
 // template — a 4,1 → 5,1 crossflash, or a fresh 144.0.0.0.0 image for a 5,1.
 // Template → Back Up → Build → Flash → Finish.
 import { html, when, fmtExact, shortHash } from "../dom.js";
@@ -9,7 +9,7 @@ import { S, actions, update, runJob, openSheet, toast, jobRunning } from "../cor
 import { section, callout, checkRow, steps, fileCard, jobBlock, locked } from "../components.js";
 import { macInfo } from "../macs.js";
 
-export const title = "Firmware Update";
+export const title = "4,1→5,1 Crossflash";
 const STEPS = [
   { id: "template", label: "Template" }, { id: "backup", label: "Back Up" },
   { id: "build", label: "Build" }, { id: "flash", label: "Flash" }, { id: "finish", label: "Finish" },
@@ -284,7 +284,7 @@ export function render() {
   const body = { template: viewTemplate, backup: viewBackup, build: viewBuild, flash: viewFlash, finish: viewFinish }[s]();
   return html`<div class="page">
     <div class="page-head">
-      <h1 class="t-large">Firmware Update</h1>
+      <h1 class="t-large">4,1→5,1 Crossflash</h1>
       <p>Move a Mac Pro 4,1 to 5,1 firmware, or give a 5,1 a clean 144.0.0.0.0 Boot ROM — your serial number and MAC address carried over.</p>
     </div>
     ${steps(STEPS, s)}

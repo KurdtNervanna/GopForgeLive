@@ -81,12 +81,45 @@ function settingsSheet() {
 }
 
 function hardwareSheet() {
-  const t = S.hardware;
+  const h = S.hardware;
+  const done = html`<div class="btn-row"><button class="btn primary" data-act="close-sheet">Done</button></div>`;
+  if (!h) return html`<div class="sheet wide" role="dialog" aria-modal="true">
+    <div class="s-title">Hardware Report</div>
+    <div class="s-body">${spinner()} Collecting everything about this computer — processors, memory, graphics, Wi-Fi, Bluetooth, drives… This can take up to a minute.</div>${done}</div>`;
+  if (h.error || !h.system) return html`<div class="sheet wide" role="dialog" aria-modal="true">
+    <div class="s-title">Hardware Report</div>
+    <div class="s-body">${h.error || "Only a basic report was available."}</div>
+    ${when(h.text, () => html`<div class="console" style="max-height:52vh;margin-top:16px">${h.text}</div>`)}${done}</div>`;
+  const line = (items, f) => (items && items.length ? items.map(f).join("\n") : "None detected");
+  const cpuGroups = {};
+  (h.cpus || []).forEach((c) => { (cpuGroups[c.name] ??= []).push(c); });
+  const cpus = Object.entries(cpuGroups).map(([n, cs]) =>
+    `${cs.length} × ${n}${cs[0].cores ? ` · ${cs[0].cores} cores${cs[0].threads ? ` / ${cs[0].threads} threads` : ""} each` : ""}`).join("\n") || "—";
+  const m = h.memory || {};
+  const mem = `${m.total || "—"}${m.slots ? ` · ${m.slots_used} of ${m.slots} slots used` : ""}${m.max_capacity ? ` · max ${m.max_capacity}` : ""}`;
+  const mods = (m.modules || []).map((d) => `${d.slot}: ${d.size} ${d.type} ${d.speed} ${d.manufacturer} ${d.part}`.replace(/\s+/g, " ").trim());
+  const row = (label, value) => html`<div class="row" style="align-items:flex-start"><div class="main-col"><div class="subtitle" style="margin:0">${label}</div>
+    <div class="title select-text" style="white-space:pre-line;font-weight:500">${value}</div></div></div>`;
+  const open = !!S.ui.console.hwfull;
   return html`<div class="sheet wide" role="dialog" aria-modal="true">
     <div class="s-title">Hardware Report</div>
-    <div class="s-body">What GopForge Live detected on this computer.</div>
-    <div class="console" style="max-height:52vh;margin-top:16px">${t ?? "Detecting…"}</div>
-    <div class="btn-row"><button class="btn primary" data-act="close-sheet">Done</button></div>
+    <div class="s-body">${h.saved
+      ? html`Saved to the USB: <span class="mono select-text">${h.saved.replace(/^.*\/gopforge-live\//, "gopforge-live/")}</span>. It includes serial numbers and MAC addresses — share it with care.`
+      : "Not saved — the USB isn’t writable."}</div>
+    <div class="group" style="margin-top:16px">
+      ${row("Model", `${h.system.model || "—"}${h.system.board ? ` · ${h.system.board}` : ""}`)}
+      ${row("Boot ROM", `${h.bootrom.version || "—"}${h.bootrom.date ? ` (${h.bootrom.date})` : ""}`)}
+      ${row("Processors", cpus)}
+      ${row("Memory", [mem, ...mods].join("\n"))}
+      ${row("Graphics", line(h.graphics, (d) => `${d.name}${d.driver ? ` · ${d.driver}` : ""}`))}
+      ${row("Wi-Fi", line(h.wifi, (d) => d.name))}
+      ${row("Bluetooth", line(h.bluetooth, (d) => d.name))}
+      ${row("Ethernet", line(h.ethernet, (d) => d.name))}
+      ${row("Storage", line(h.storage, (d) => `${d.name} · ${d.size} ${d.kind}${d.model ? ` · ${d.model}` : ""}${d.transport ? ` (${d.transport})` : ""}`))}
+    </div>
+    <button class="disclose ${open ? "open" : ""}" data-act="toggle-console" data-id="hwfull" style="margin-top:12px">${icon("chevronRight")} ${open ? "Hide" : "Show"} Full Report</button>
+    <div class="console" ${open ? "" : "hidden"} style="max-height:40vh">${h.text}</div>
+    ${done}
   </div>`;
 }
 
@@ -201,7 +234,7 @@ Object.assign(actions, {
     if (kind === "hardware") {
       S.hardware = null;
       const h = await api.get("/api/hardware");
-      update({ hardware: h.ok ? h.text : h.error });
+      update({ hardware: h.ok ? h : { error: h.error || "The report couldn’t be collected." } });
     }
   },
   "confirm-go": () => {

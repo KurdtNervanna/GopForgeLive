@@ -13,6 +13,7 @@
 # Usage (via the wrapper scripts in dev/mock/bin): mockhw.sh <tool> [args…]
 set -u
 tool="$1"; shift
+FIX="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/fixtures"
 nap() { [ "${GFL_MOCK_FAST:-0}" = 1 ] || sleep "$1"; }
 CHIP="${GFL_MOCK_CHIP:-${GFL_MEDIUM:-/tmp}/.mock-chip.rom}"
 fail_on() { case ",${GFL_MOCK_FAIL:-}," in *",$1,"*) return 0;; esac; return 1; }
@@ -43,12 +44,38 @@ make_bootrom() { # out  — a 4 MiB image that looks like a cMP 4,1/5,1 BootROM
 
 case "$tool" in
   dmidecode)
-    [ "${GFL_MOCK_MODEL:-MacPro5,1}" = PC ] && { echo "Standard PC (Q35 + ICH9, 2009)"; exit 0; }
-    echo "${GFL_MOCK_MODEL:-MacPro5,1}" ;;
+    model="${GFL_MOCK_MODEL:-MacPro5,1}"
+    fixture="$FIX/${model%%-*}.dmi"
+    if [[ " $* " == *" -t "* ]]; then          # SMBIOS tables from the fixture, filtered by type
+      [ -f "$fixture" ] || exit 0
+      want=""; prev=""
+      for a in "$@"; do
+        if [ "$prev" = -t ]; then
+          case "$a" in bios) want+=" 0";; system) want+=" 1";; baseboard) want+=" 2";; chassis) want+=" 3";;
+                        processor) want+=" 4";; memory) want+=" 16 17";; *) want+=" $a";; esac
+        fi
+        prev="$a"
+      done
+      awk -v want="$want " '/^Handle /{ split($0, f, "type "); t = f[2] + 0; keep = index(want, " " t " ") > 0 }
+                           /^Handle /, /^$/ { if (keep) print }' "$fixture"
+      exit 0
+    fi
+    [ "$model" = PC ] && { echo "Standard PC (Q35 + ICH9, 2009)"; exit 0; }
+    echo "$model" ;;
 
   lspci)
     args="$*"; sel=""
     [[ "$args" =~ -s[[:space:]]+([^[:space:]]+) ]] && sel="${BASH_REMATCH[1]}"
+    fixture="$FIX/${GFL_MOCK_MODEL:-MacPro5,1}.pci"
+    if [ -z "$sel" ] && [[ "$args" != *" -d "* ]] && [[ "$args" != -d* ]]; then   # full device list (hardware report)
+      [ -f "$fixture" ] && cat "$fixture"
+      while IFS='|' read -r bdf text sub prod kind; do
+        [ -n "$bdf" ] || continue
+        echo "$bdf $text"; echo "	Subsystem: Device [$sub]"
+        case "$kind" in amd) echo "	Kernel driver in use: amdgpu";; nvidia) echo "	Kernel driver in use: nouveau";; esac
+      done < <(gpus)
+      exit 0
+    fi
     while IFS='|' read -r bdf text sub prod kind; do
       [ -n "$bdf" ] || continue
       if [ -z "$sel" ]; then
@@ -58,6 +85,11 @@ case "$tool" in
         case "$args" in *-v*) echo "	Subsystem: Apple Inc. Device [$sub]"; echo "	Flags: bus master, fast devsel, latency 0, IRQ 42";; esac
       fi
     done < <(gpus) ;;
+
+  lsusb)
+    fixture="$FIX/${GFL_MOCK_MODEL:-MacPro5,1}.usb"
+    [ "${1:-}" = -t ] && exit 0
+    [ -f "$fixture" ] && cat "$fixture" ;;
 
   flashrom)
     case "$*" in
@@ -130,7 +162,7 @@ case "$tool" in
                   [ "$kind" = nvidia ] || continue
                   echo "<$i> (10DE,1180,$(tr a-f A-F <<<"${sub/:/,}")) S:00,B:${bdf:5:2},D:00,F:00"; i=$((i+1))
                 done < <(gpus) ;;
-      *--save*) out="${*##* }"; echo "NVIDIA Firmware Update Utility (Version 5.590.0)"; nap 1.5
+      *--save*) out="${!#}"; echo "NVIDIA Firmware Update Utility (Version 5.590.0)"; nap 1.5
                 fail_on backup && { echo "ERROR: No NVIDIA display adapters found"; exit 1; }
                 head -c 131072 /dev/urandom > "$out"; echo "Firmware image saved to $out" ;;
       *--protectoff*|*--protecton*) echo "Setting EEPROM software protect setting... OK" ;;

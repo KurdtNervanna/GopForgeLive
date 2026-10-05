@@ -14,6 +14,24 @@ export async function enter() {
     const g = await api.get("/api/gpus");
     if (g.ok) update({ gpus: g.gpus });
   }
+  if (!S.hwsum) {
+    const h = await api.get("/api/hw-summary");
+    update({ hwsum: h.ok ? h : { failed: true } });
+  }
+}
+
+function cpuText(h) {
+  if (!h) return "Detecting…";
+  const cs = h.cpus || [];
+  if (!cs.length) return "—";
+  const names = [...new Set(cs.map((c) => c.name.replace(/\(R\)|\(TM\)|CPU\s+/g, "").replace(/\s+/g, " ").trim()))];
+  return `${cs.length > 1 ? `${cs.length} × ` : ""}${names.join(" + ")}`;
+}
+function memText(h) {
+  if (!h) return "Detecting…";
+  const m = h.memory || {};
+  const t = m.modules?.[0];
+  return m.total ? `${m.total}${t ? ` ${t.type} ${t.speed}` : ""}${m.slots ? ` · ${m.slots_used} of ${m.slots} slots` : ""}` : "—";
 }
 
 function toolRows(st) {
@@ -54,8 +72,11 @@ export function render() {
 
   const cta = [];
   if (m.allow_bootrom || expert)
-    cta.push(navRow("bootrom", "chip", "orange", "Add a native boot screen",
-      "Back up, patch and flash your Mac Pro’s Boot ROM with EnableGop"));
+    cta.push(navRow("bootrom", "chip", "orange", "Add GOP cMP",
+      "Add a native boot screen: back up, patch and flash your Mac Pro’s Boot ROM with EnableGop"));
+  if (m.allow_bootrom || expert)
+    cta.push(navRow("rebuild", "download", "teal", "4,1→5,1 Crossflash",
+      "Move a 4,1 to Mac Pro 5,1 firmware 144.0.0.0.0, or give a 5,1 a clean Boot ROM"));
   if (m.allow_gpu || expert)
     cta.push(navRow("gpu", "gpu", "purple", "Install boot-screen graphics firmware",
       "Pick the right GOP-enabled vBIOS for your graphics card and flash it safely"));
@@ -88,6 +109,9 @@ export function render() {
         ${kv("Boot-screen method", cls.path)}
         ${kv("Graphics", gpu0 ? gpuName(gpu0.name) : S.gpus ? "None detected" : "Detecting…")}
         ${kv("Graphics IDs", gpu0 ? `${gpu0.vendor}:${gpu0.device} · ${gpu0.subsys}` : "—")}
+        ${kv("Processors", cpuText(S.hwsum))}
+        ${kv("Memory", memText(S.hwsum))}
+        ${kv("Boot ROM version", S.hwsum?.bootrom?.version || (S.hwsum ? "—" : "Detecting…"))}
         ${kv("Backups & log saved to", st.storage.on_usb ? "This USB drive" : "Memory only — lost at shut-down")}
         ${kv("GopForge Live", st.version)}
       </div>`, when(!st.storage.on_usb, () => "The USB’s data partition wasn’t found writable, so backups can’t be kept. Don’t flash anything until this is resolved."))}

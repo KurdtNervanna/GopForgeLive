@@ -43,6 +43,10 @@ export async function enter() {
   await Promise.all(tasks);
   if (G().gpuIndex === null && S.gpus?.length === 1 && S.gpus[0].flasher) G().gpuIndex = S.gpus[0].index;
   update();
+  // backup-only pages (Mac Pro, or the iMac "submit" step) need the adapter list up front
+  const m = S.status.machine;
+  const backupOnly = (!(m.allow_gpu || S.status.expert) && m.class === "cmp-bootrom") || G().step === "submit";
+  if (backupOnly && G().gpuIndex !== null && !G().adapters) await loadAdapters();
 }
 
 // ------------------------------------------------------------------ actions --
@@ -103,7 +107,43 @@ function askFlash() {
   });
 }
 
+// Back up only (Mac Pro, or an iMac card the library doesn't cover) and, optionally,
+// package the backup with a README for sharing.
+async function doBackupOnly() {
+  const g = G(); const gpu = selectedGpu();
+  const job = await runJob("backup-gpu", { vendor: gpu.flasher, index: g.adapter },
+    { owner: "gpu", title: "Saving the card’s firmware…" });
+  if (job?.state === "done") {
+    Object.assign(g, { backup: job.result.backup, submission: null });
+    toast("ok", "Firmware backed up", `${job.result.backup.name} saved to the USB.`);
+  } else if (job) toast("bad", "Backup failed", job.result?.error || "See the details.");
+  update();
+}
+
+async function doPackage() {
+  const g = G(); const gpu = selectedGpu();
+  const job = await runJob("gpu-submission", { vendor: gpu.flasher, index: g.adapter, backup: g.backup.path },
+    { owner: "gpu", title: "Preparing the submission folder…" });
+  if (job?.state === "done") {
+    g.submission = job.result;
+    toast("ok", "Ready to share", "The firmware and a README are in their own folder on the USB.");
+  } else if (job) toast("bad", "Couldn’t prepare the folder", job.result?.error || "See the details.");
+  update();
+}
+
 Object.assign(actions, {
+  "gpu-bo-pick": async (el) => {
+    if (jobRunning()) return;
+    Object.assign(G(), { gpuIndex: Number(el.dataset.i), adapter: null, backup: null, submission: null });
+    update(); await loadAdapters();
+  },
+  "gpu-bo-backup": doBackupOnly,
+  "gpu-package": doPackage,
+  "gpu-submit-start": async () => {
+    if (jobRunning()) return;
+    Object.assign(G(), { step: "submit", backup: null, submission: null });
+    update(); await loadAdapters();
+  },
   "gpu-pick": (el) => { if (jobRunning()) return; G().gpuIndex = Number(el.dataset.i); update(); },
   "gpu-variant": (el) => { G().modelKey = el.dataset.k; update(); },
   "gpu-card": (el) => { G().cardIdx = Number(el.dataset.i); G().rom = recommended(card()); update(); },
@@ -120,7 +160,7 @@ Object.assign(actions, {
   },
   "gpu-back": () => {
     const g = G(); if (jobRunning()) return;
-    g.step = { firmware: "card", backup: "firmware", flash: "backup" }[g.step] || "card";
+    g.step = { firmware: "card", backup: "firmware", flash: "backup", submit: "firmware" }[g.step] || "card";
     update();
   },
   "gpu-backup": doBackup,
@@ -128,7 +168,7 @@ Object.assign(actions, {
   "gpu-reset": () => {
     if (jobRunning()) return;
     S.gpu = { step: "card", gpuIndex: null, model: G().model, modelKey: null, plan: null, cardIdx: 0, rom: null,
-              adapters: null, adapter: null, backup: null, flashed: false, error: null };
+              adapters: null, adapter: null, backup: null, flashed: false, error: null, submission: null };
     update();
   },
 });
@@ -204,6 +244,10 @@ function viewFirmware() {
   const c = card();
   if (!c) return html`<div class="panel">${callout("warn", "No matching firmware in the library",
     html`The library covers the AMD cards documented by the IMAC-EFI-BOOT-SCREEN project. ${selectedGpu()?.vendor === "10de" ? "NVIDIA cards need card-specific Kepler ROMs — or OpenCore — instead." : ""}`)}
+    ${section("Help get this card supported", html`<div class="group"><div class="row">${sq("archive", "blue")}
+      <div class="main-col"><div class="title">Back up its firmware for submission</div>
+        <div class="subtitle">Saves the card’s current firmware with a README describing your iMac and card, ready to post where GOP firmware for new cards gets made. Nothing is written to the card.</div></div>
+      <button class="btn primary" data-act="gpu-submit-start">${icon("download")} Back Up for Submission</button></div></div>`)}
     <div class="btn-row"><button class="btn" data-act="gpu-back">${icon("chevronLeft")} Back</button><span class="grow"></span>
     <button class="btn" data-act="go" data-to="library">${icon("layers")} Browse the Library</button></div></div>`;
   const rec = recommended(c);
@@ -261,6 +305,53 @@ function viewBackup() {
   </div>`;
 }
 
+function destinations(sub, macPro) {
+  const list = (sub.destinations || []).filter((d) => d.for === "any" || !macPro);
+  return section("Where to send it", html`<div class="group">${list.map((d) => html`<div class="row" style="align-items:flex-start">
+      ${sq("arrowRight", "blue")}<div class="main-col"><div class="title">${d.name}</div>
+        <div class="subtitle"><span class="mono select-text">${d.url}</span><br>${d.how}</div></div></div>`)}</div>`,
+    "GopForge Live doesn’t upload anything itself — copy the folder to a computer and post it from there.");
+}
+
+function backupOnlyPanel(macPro) {
+  const g = G(); const a = g.adapters; const gpu = selectedGpu();
+  const gpus = (S.gpus || []).filter((x) => x.flasher);
+  const jb = myJob("backup-gpu"); const jp = myJob("gpu-submission");
+  const sub = g.submission;
+  return html`<div class="panel">
+    <div class="panel-head"><div style="width:84px;height:84px;flex:none">${gpuArt()}</div>
+      <div class="txt"><h2 class="t-title2">${macPro ? "Back up graphics firmware" : "Back up for submission"}</h2>
+        <p>${macPro ? "Save a copy of your graphics card’s firmware to this USB. On a Mac Pro the boot screen comes from the Boot ROM (Add GOP cMP), so nothing is written to the card here."
+                    : "The card’s current firmware is saved to this USB, then packaged with a README so the people who make GOP firmware for iMac cards can look at it. Nothing is written to the card."}</p></div></div>
+    ${section("Graphics card", !S.gpus ? html`<p class="muted">Detecting…</p>` : !gpus.length
+      ? callout("warn", "No AMD or NVIDIA card detected", "Only AMD (amdvbflash) and NVIDIA (nvflash) firmware can be read.")
+      : html`<div class="group icons">${gpus.map((x) => {
+          const on = g.gpuIndex === x.index;
+          return html`<div class="row tall selectable link ${on ? "selected" : ""}" tabindex="0" role="radio" aria-checked="${on}" data-act="gpu-bo-pick" data-i="${x.index}">
+            ${sq("gpu", x.vendor === "10de" ? "green" : "red", "lg")}
+            <div class="main-col"><div class="title">${gpuName(x.name)}</div>
+              <div class="subtitle">${x.vendor_label} · <span class="mono">${x.vendor}:${x.device}</span> · subsystem <span class="mono">${x.subsys}</span> · slot ${x.bdf}</div></div>
+            ${on ? html`<span style="color:var(--blue)">${icon("check")}</span>` : ""}</div>`;
+        })}</div>`)}
+    ${when(gpu && a, () => !a.ok ? callout("danger", "Couldn’t list the adapters", a.error)
+      : a.indices.length > 1 ? section("Adapter", html`<div class="segmented">${a.indices.map((i) =>
+          html`<button class="${i === g.adapter ? "on" : ""}" data-act="gpu-adapter" data-i="${i}">#${i}</button>`)}</div>`,
+          "More than one adapter found — pick the one whose bus matches the card above.") : "")}
+    ${jobBlock(jb, { running: "Saving the firmware…", done: "Firmware saved", failed: "Backup failed" })}
+    ${when(g.backup, () => html`<div style="margin-top:var(--s5)">${fileCard(g.backup, "vbios")}</div>`)}
+    ${jobBlock(jp, { running: "Preparing…", done: "Submission folder ready", failed: "Couldn’t prepare the folder" })}
+    ${when(sub, () => html`<div style="margin-top:var(--s5)">${callout("success", "Ready to share",
+      html`Saved to the USB in <span class="mono select-text">${sub.folder.replace(/^.*\/gopforge-live\//, "gopforge-live/")}</span> — the firmware plus <span class="mono">README.txt</span> with your Mac and card details (no serial numbers).`)}</div>
+      ${destinations(sub, macPro)}`)}
+    <div class="btn-row">
+      ${when(!macPro, () => html`<button class="btn" data-act="gpu-back" ${jobRunning() ? "disabled" : ""}>${icon("chevronLeft")} Back</button>`)}
+      <span class="grow"></span>
+      ${when(g.backup && !sub, () => html`<button class="btn" data-act="gpu-package" ${jobRunning() ? "disabled" : ""}>${icon("archive")} Prepare for Submission</button>`)}
+      <button class="btn primary large" data-act="gpu-bo-backup" ${gpu && a?.ok && !jobRunning() ? "" : "disabled"}>${icon("download")} ${g.backup ? "Back Up Again" : "Back Up Firmware"}</button>
+    </div>
+  </div>`;
+}
+
 function viewFlash() {
   const g = G(); const gpu = selectedGpu(); const j = myJob("flash-gpu");
   return html`<div class="panel">
@@ -310,10 +401,19 @@ function viewFinish() {
 
 export function render() {
   const m = S.status.machine;
-  if (!(m.allow_gpu || S.status.expert))
+  if (!(m.allow_gpu || S.status.expert)) {
+    if (m.class === "cmp-bootrom") return html`<div class="page">
+      <div class="page-head"><h1 class="t-large">Graphics Card</h1>
+        <p>Keep a copy of your graphics card’s firmware — and share it if it’s a card others are looking for.</p></div>
+      ${backupOnlyPanel(true)}</div>`;
     return html`<div class="page">${locked("Graphics firmware tools are for iMacs",
-      html`Supported: iMac 2009 – 2011 (iMac9,1 to iMac12,2). ${m.class === "cmp-bootrom" ? "Your Mac Pro gets its boot screen from the Boot ROM instead." : ""}`)}</div>`;
+      html`Supported: iMac 2009 – 2011 (iMac9,1 to iMac12,2), plus firmware backups on Mac Pro 4,1 / 5,1.`)}</div>`;
+  }
   const s = G().flashed ? "finish" : G().step;
+  if (s === "submit") return html`<div class="page">
+    <div class="page-head"><h1 class="t-large">Graphics Card</h1>
+      <p>This card isn’t in the firmware library yet. Back up its firmware so it can be added.</p></div>
+    ${backupOnlyPanel(false)}</div>`;
   const body = { card: viewCard, firmware: viewFirmware, backup: viewBackup, flash: viewFlash, finish: viewFinish }[s]();
   return html`<div class="page">
     <div class="page-head">

@@ -35,9 +35,9 @@ function sidebar() {
       ${navItem("overview", /^iMac/.test(m.model) ? "imac" : "macpro", "graphite", info.name, { meta: m.model })}
     </div>
     <div class="nav-section"><div class="nav-title">Boot Screen</div>
-      ${navItem("bootrom", "chip", "orange", "Boot ROM", { locked: !(m.allow_bootrom || ex) })}
-      ${navItem("rebuild", "download", "teal", "Firmware Update", { locked: !(m.allow_bootrom || ex) })}
-      ${navItem("gpu", "gpu", "purple", "Graphics Card", { locked: !(m.allow_gpu || ex) })}
+      ${navItem("bootrom", "chip", "orange", "Add GOP cMP", { locked: !(m.allow_bootrom || ex) })}
+      ${navItem("rebuild", "download", "teal", "4,1→5,1 Crossflash", { locked: !(m.allow_bootrom || ex) })}
+      ${navItem("gpu", "gpu", "purple", "Graphics Card", { locked: !(m.allow_gpu || ex || m.class === "cmp-bootrom") })}
     </div>
     <div class="nav-section"><div class="nav-title">Library</div>
       ${navItem("backups", "archive", "blue", "Backups", { meta: S.backups?.files ? String(S.backups.files.length) : "" })}

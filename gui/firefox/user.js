@@ -49,9 +49,12 @@ user_pref("dom.disable_open_during_load", true);
 user_pref("browser.link.open_newwindow", 1);
 
 // quiet chrome
-user_pref("browser.fullscreen.autohide", true);
 user_pref("full-screen-api.warning.timeout", 0);
 user_pref("ui.systemUsesDarkTheme", 1);
 user_pref("layout.css.prefers-color-scheme.content-override", 0);
 user_pref("gfx.webrender.software", true);
 user_pref("media.hardware-video-decoding.enabled", false);
+
+user_pref("browser.startup.page", 0);
+user_pref("browser.startup.homepage", "about:blank");
+user_pref("browser.tabs.closeWindowWithLastTab", true);

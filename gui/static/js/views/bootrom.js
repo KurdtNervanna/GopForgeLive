@@ -7,7 +7,7 @@ import { section, callout, checkRow, steps, fileCard, jobBlock, locked } from ".
 import { macInfo } from "../macs.js";
 import { api } from "../api.js";
 
-export const title = "Boot ROM";
+export const title = "Add GOP cMP";
 
 // Saved Boot ROM backups, so the flow can continue from one after a restart.
 export async function enter() {
@@ -332,7 +332,7 @@ export function render() {
   const body = { backup: viewBackup, inspect: viewInspect, already: viewAlready, patch: viewPatch, flash: viewFlash, finish: viewFinish }[s]();
   return html`<div class="page">
     <div class="page-head">
-      <h1 class="t-large">Boot ROM</h1>
+      <h1 class="t-large">Add GOP cMP</h1>
       <p>Give your Mac Pro a native boot screen and startup picker by adding EnableGop to its firmware — no OpenCore needed for the picker.</p>
     </div>
     ${steps(STEPS, s === "already" ? "finish" : s)}

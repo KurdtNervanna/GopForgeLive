@@ -41,7 +41,7 @@ GPU:
 
 The USB boots straight into a full-screen, macOS-style app (Firefox kiosk + a local
 Python backend over the same engine as the text wizard): a device overview, guided
-**Boot ROM** and **Graphics Card** flows with live progress, backups, the ROM library
+**Add GOP cMP**, **4,1→5,1 Crossflash** and **Graphics Card** flows with live progress, backups, the ROM library
 and an activity log. It falls back to the text wizard automatically if graphics can't
 start. See [docs/GUI.md](docs/GUI.md) — including `dev/run-gui-dev.sh`, which runs the
 app against simulated hardware on any Linux/WSL box.
@@ -76,7 +76,7 @@ supported. Mac Pro 3,1 and earlier are not.
 
 ### Mac Pro 4,1 / 5,1 — firmware update and 4,1 → 5,1 crossflash (experimental)
 
-**Firmware Update** rebuilds the Boot ROM on a clean **144.0.0.0.0** template. It follows
+**4,1→5,1 Crossflash** rebuilds the Boot ROM on a clean **144.0.0.0.0** template. It follows
 [Borowski's template guide](https://forums.macrumors.com/threads/guide-how-to-rebuild-update-mac-pro-4-1-5-1-bootrom-with-template-files.2437082/)
 and does each step in code:
 
