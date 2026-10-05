@@ -40,13 +40,15 @@ user_pref("services.settings.server", "http://127.0.0.1:9/");
 user_pref("network.dns.disablePrefetch", true);
 user_pref("network.prefetch-next", false);
 
-// no session restore or close prompts; single window, no popups
+// no session restore or close prompts; one window. Links the app opens (the "Post…"
+// buttons on the graphics-card page) go to a new, invisible tab — Ctrl+W comes back.
 user_pref("browser.sessionstore.resume_from_crash", false);
 user_pref("browser.sessionstore.max_resumed_crashes", 0);
 user_pref("browser.tabs.warnOnClose", false);
 user_pref("browser.warnOnQuit", false);
 user_pref("dom.disable_open_during_load", true);
-user_pref("browser.link.open_newwindow", 1);
+user_pref("browser.link.open_newwindow", 3);
+user_pref("browser.link.open_newwindow.restriction", 0);
 
 // quiet chrome
 user_pref("full-screen-api.warning.timeout", 0);

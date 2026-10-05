@@ -139,6 +139,7 @@ Object.assign(actions, {
   },
   "gpu-bo-backup": doBackupOnly,
   "gpu-package": doPackage,
+  "gpu-post": (el) => postOnSite(el),
   "gpu-submit-start": async () => {
     if (jobRunning()) return;
     Object.assign(G(), { step: "submit", backup: null, submission: null });
@@ -305,13 +306,48 @@ function viewBackup() {
   </div>`;
 }
 
+const destList = (sub, macPro) => (sub.destinations || []).filter((d) => d.for === "any" || !macPro);
+
 function destinations(sub, macPro) {
-  const list = (sub.destinations || []).filter((d) => d.for === "any" || !macPro);
-  return section("Where to send it", html`<div class="group">${list.map((d) => html`<div class="row" style="align-items:flex-start">
+  const list = destList(sub, macPro);
+  return section("Where to send it", html`<div class="group">${list.map((d, i) => html`<div class="row" style="align-items:flex-start">
       ${sq("arrowRight", "blue")}<div class="main-col"><div class="title">${d.name}</div>
-        <div class="subtitle"><span class="mono select-text">${d.url}</span><br>${d.how}</div></div></div>`)}</div>`,
-    "GopForge Live doesn’t upload anything itself — copy the folder to a computer and post it from there.");
+        <div class="subtitle"><span class="mono select-text">${d.url}</span><br>${d.how}</div></div>
+      ${when(d.post_url, () => html`<button class="btn" style="flex:none;align-self:center" data-act="gpu-post" data-i="${i}" data-mac="${macPro ? 1 : 0}">Post on ${d.site}…</button>`)}</div>`)}</div>`,
+    list.some((d) => d.post_url)
+      ? "GopForge Live never uploads anything on its own. Post… opens the site here (needs an Ethernet cable); you sign in and attach the file yourself. You can also copy the folder to a computer and post it from there."
+      : "GopForge Live never uploads anything on its own — copy the folder to a computer and submit it from there.");
 }
+
+// Open a submission site in a new, invisible kiosk tab; Ctrl+W closes it again.
+async function postOnSite(el) {
+  const sub = G().submission; if (!sub) return;
+  const d = destList(sub, el.dataset.mac === "1")[Number(el.dataset.i)]; if (!d?.post_url) return;
+  toast("info", `Checking the connection to ${d.site}…`, "", 4000);
+  const r = await api.get(`/api/online?host=${encodeURIComponent(d.host)}`);
+  if (!r.ok || !r.online) {
+    return toast("bad", `Can’t reach ${d.site}`, "Plug an Ethernet cable into the Mac (Wi-Fi isn’t available here), wait a few seconds and try again — or copy the submissions folder to a computer and post it from there.", 12000);
+  }
+  const folder = (sub.folder || "").split("/").pop();
+  openSheet({
+    kind: "alert", icon: "arrowRight", color: "blue",
+    title: `Post on ${d.site}`,
+    body: html`<ol style="text-align:left;margin:0;padding-left:1.2em;line-height:1.55">
+        <li>Sign in to ${d.site} (or create a free account).</li>
+        <li>Reply in the thread and attach the firmware: in the file dialog choose <strong>Home › GopForge submissions › ${folder}</strong>, then <span class="mono">${sub.rom?.name || "the .rom file"}</span>.</li>
+        <li>Paste the card details from <span class="mono">README.txt</span> in the same folder (Mac model, PCI IDs, part number).</li>
+        <li><strong>Press Ctrl+W</strong> to close ${d.site} and come back here.</li></ol>`,
+    action: `Open ${d.site}`,
+    run: () => { S.awaySite = d.site; window.open(d.post_url, "_blank", "noopener"); },
+  });
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && S.awaySite) {
+    toast("ok", "Back in GopForge Live", `${S.awaySite} was closed.`, 4000);
+    S.awaySite = null;
+  }
+});
 
 function backupOnlyPanel(macPro) {
   const g = G(); const a = g.adapters; const gpu = selectedGpu();

@@ -256,10 +256,12 @@ GFL_SUBMIT_DESTINATIONS='[
  {"name":"MacRumors — 2011 iMac Graphics Card Upgrade",
   "url":"https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/",
   "how":"Where the IMAC-EFI-BOOT-SCREEN maintainer builds GOP/EnableGop firmware for new iMac cards. Post the .rom with README.txt and ask for support.",
+  "post_url":"https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/latest",
+  "site":"MacRumors", "host":"forums.macrumors.com",
   "for":"imac"},
  {"name":"TechPowerUp VGA BIOS Collection",
   "url":"https://www.techpowerup.com/vgabios/",
-  "how":"The public archive of graphics-card firmware. Uploads go through GPU-Z on Windows, or the “VGA Bios collection – Bios uploading” forum thread: https://www.techpowerup.com/forums/threads/vga-bios-collection-bios-uploading.184704/",
+  "how":"The public archive of graphics-card firmware. It only accepts uploads from GPU-Z on Windows (there is no web upload): with the card in a Windows PC, or this Mac booted into Windows, open GPU-Z, click the arrow next to “BIOS Version” and choose Submit. Uploads appear under “Unverified Uploads”.",
   "for":"any"}
 ]'
 
@@ -324,6 +326,8 @@ PY
     echo "No serial numbers are included in this folder."
   } >"$dir/README.txt"
   sync 2>/dev/null || true
+  # A shortcut in the kiosk's home folder, so the browser's "attach file" dialog finds it.
+  [ -n "${GFL_MOCK:-}" ] || ln -sfn "$GFL_WORKDIR/submissions" "${HOME:-/root}/GopForge submissions" 2>/dev/null || true
   _log API "gpu-submission $vendor adapter=$idx -> $dir"
   emit --arg d "$dir" --argjson rom "$(file_json "$rom")" --arg readme "$dir/README.txt" \
        --argjson facts "$romfacts" --argjson dest "$GFL_SUBMIT_DESTINATIONS" \

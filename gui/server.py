@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -53,6 +54,10 @@ ACTIONS: dict[str, dict] = {
 }
 EXPERT_PHRASE = "I UNDERSTAND"
 
+
+# Sites the graphics-card page may open for posting a firmware backup (gfl-api
+# GFL_SUBMIT_DESTINATIONS). Only these are probed by /api/online.
+SUBMIT_HOSTS = {"forums.macrumors.com"}
 
 class Session:
     """Process-wide state: token, expert flag, jobs."""
@@ -278,6 +283,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(run_api(["rom-identity", q.get("path", "")]))
         if route == "log":
             return self.send_json(run_api(["log", q.get("n", "400")]))
+        if route == "online":           # can this Mac reach a submission site? (Post… button)
+            host = q.get("host", "")
+            if host not in SUBMIT_HOSTS:
+                return self.send_json({"ok": False, "code": "usage", "error": "unknown site"}, 400)
+            try:
+                socket.create_connection((host, 443), timeout=6).close()
+                SESSION.note(f"online: {host} reachable — opening it in a new tab")
+                return self.send_json({"ok": True, "online": True})
+            except OSError as e:
+                SESSION.note(f"online: {host} not reachable ({e})")
+                return self.send_json({"ok": True, "online": False, "error": str(e)})
         if route.startswith("jobs/"):
             job = SESSION.jobs.get(route[5:])
             if not job:
