@@ -19,8 +19,9 @@ Built for two kinds of Mac, and nothing else:
 > appears, so you can flash the card with the screen working. See
 > [Swapped the GPU in an iMac?](#swapped-the-gpu-in-an-imac-flash-it-here-first)
 
-> ⚠️ **Status: `0.4.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
-> 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
+> ⚠️ **Status: `0.5.0-beta`.** The USB stick boots straight into the app on a real Mac Pro
+> 5,1 and a 27" iMac12,2, and reads/backs up firmware on real hardware. The new DVD boots
+> and saves to USB in a virtual machine but hasn't been tried in a real Mac's drive yet. Its Linux EnableGop
 > injector produces a DXE volume byte-identical to dosdude1's DXEInject on a real
 > MacPro5,1 Boot ROM, and the 4,1→5,1 Crossflash rebuild reproduces a real 5,1's Boot ROM
 > exactly (apart from the emptied NVRAM and the template's stores and checksums). **No
