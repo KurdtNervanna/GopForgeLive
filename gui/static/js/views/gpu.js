@@ -79,7 +79,7 @@ async function doBackup() {
   const job = await runJob("backup-gpu", { vendor: gpu.flasher, index: G().adapter },
     { owner: "gpu", title: "Saving the current firmware…" });
   if (job?.state === "done") {
-    G().backup = job.result.backup;
+    Object.assign(G(), { backup: job.result.backup, submission: null });
     toast("ok", "Current firmware backed up", `${job.result.backup.name} saved to the USB.`);
     G().step = "flash";
   } else if (job) toast("bad", "Backup failed", job.result?.error || "See the details.");
@@ -410,6 +410,20 @@ function viewFlash() {
   </div>`;
 }
 
+// After a flash, ask for the card's ORIGINAL firmware (the backup): every board and
+// firmware version people share is one more the next GOP/EnableGop ROM can be built from.
+function shareOriginal() {
+  const g = G(); const jp = myJob("gpu-submission"); const sub = g.submission;
+  return html`${section("Share your card’s original firmware", html`<div class="group"><div class="row">${sq("archive", "blue")}
+      <div class="main-col"><div class="title">${g.backup.name}</div>
+        <div class="subtitle">Firmware ROMs for iMac cards are built from originals people share. A version nobody has posted yet, or a newly released card, helps the next person with the same card.</div></div>
+      ${when(!sub, () => html`<button class="btn" data-act="gpu-package" ${jobRunning() ? "disabled" : ""}>${icon("archive")} Prepare for Submission</button>`)}</div></div>`)}
+    ${jobBlock(jp, { running: "Preparing…", done: "Submission folder ready", failed: "Couldn’t prepare the folder" })}
+    ${when(sub, () => html`<div style="margin-top:var(--s5)">${callout("success", "Ready to share",
+      html`Saved to the USB in <span class="mono select-text">${sub.folder.replace(/^.*\/gopforge-live\//, "gopforge-live/")}</span>: the original firmware plus <span class="mono">README.txt</span> with your Mac and card details (no serial numbers).`)}</div>
+      ${destinations(sub, false)}`)}`;
+}
+
 function viewFinish() {
   const g = G(); const gpu = selectedGpu();
   const restore = gpu.flasher === "amd" ? `amdvbflash -f -p ${g.adapter} ${g.backup.name}` : `nvflash -i${g.adapter} -6 ${g.backup.name}`;
@@ -428,6 +442,7 @@ function viewFinish() {
         : "The boot screen should now appear on the built-in display.")}
       ${tip(3, "Hold ⌥ Option for the startup picker", "Use it to choose between macOS installs or this USB.")}
     </div>`, html`To undo, boot this USB and run <span class="mono">${restore}</span>.`)}
+    ${shareOriginal()}
     <div class="btn-row">
       <button class="btn" data-act="go" data-to="backups">${icon("archive")} View Backups</button><span class="grow"></span>
       <button class="btn primary large" data-act="system" data-do="poweroff">${icon("power")} Shut Down</button>

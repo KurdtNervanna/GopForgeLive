@@ -72,6 +72,8 @@ monitor to fix that. GopForge-Live brings the screen up itself:
    the app recommends for your iMac and card.
 5. Restart. You should now see the boot picker and Apple logo, with macOS using the
    card.
+6. **Please share the backup from step 4.** See
+   [Share your firmware](#share-your-firmware).
 
 If the screen stays dark: try step 2 again, since it's easy to miss blind. On the
 iMac9,1 and 21.5" iMac10,1 (LVDS panels), Polaris and Navi cards have no LVDS output at
@@ -101,6 +103,8 @@ Also on the stick:
 - **Back Up for Submission**: an iMac card the library doesn't cover gets its firmware
   and a README with its IDs saved to `gopforge-live/submissions/`, and **Post on
   MacRumors…** opens the iMac graphics-upgrade thread so you can attach it (Ethernet needed).
+  After flashing a supported card, the app offers the same for its original firmware. See
+  [Share your firmware](#share-your-firmware).
 
 ### Screenshots
 
@@ -211,6 +215,32 @@ iMac and card need one.
 <sub>Generated from [`catalog/imac-boot-screen-matrix.json`](catalog/imac-boot-screen-matrix.json)
 (the same rules the app enforces) with `py dev/compat-table.py --write`. Firmware the app knows won't
 work on your model (e.g. EG2 on the 27" iMac10,1) is blocked.</sub>
+
+## Share your firmware
+
+Every ROM in the library was built from a card's **original firmware** that someone
+shared. The library can only grow, and keep up with new cards, if people keep posting
+theirs. GopForge-Live always saves the original before it writes anything, so you
+already have a copy. Please share it whenever you can, especially if:
+
+- your card **isn't in the library** yet (the app offers **Back Up for Submission**),
+- it's a **newly released card**, or a new board or memory vendor (Hynix, Samsung,
+  Elpida…) of a known one,
+- its firmware **version or part number** (`113-…`) differs from what's already posted,
+- it's a **Mac Pro** card: graphics backups work there too.
+
+**How:** after a backup or a flash, choose **Prepare for Submission**. The app puts the
+`.rom` and a `README.txt` (Mac model, PCI and subsystem IDs, part number, no serial
+numbers) in `gopforge-live/submissions/` on the USB. Then:
+
+- **iMac cards:** post both files in the MacRumors
+  [2011 iMac Graphics Card Upgrade](https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/)
+  thread, where new iMac firmware gets built. **Post on MacRumors…** opens it from inside
+  the app (Ethernet needed), or copy the folder to another computer.
+- **Any card:** submit it to the [TechPowerUp VGA BIOS Collection](https://www.techpowerup.com/vgabios/)
+  with GPU-Z on Windows (TechPowerUp only accepts uploads through GPU-Z).
+
+GopForge-Live never uploads anything by itself. You choose what to post and where.
 
 ## Why it exists
 

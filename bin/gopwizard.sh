@@ -55,6 +55,10 @@ choose_gpu_index() { # -> echoes chosen array index, or non-zero on cancel
   ui_menu "Select GPU" "Which adapter do you want to work on?" "${args[@]}"
 }
 
+GFL_SHARE_NOTE="Please share that backup (your card's original firmware): new cards and
+firmware versions get supported from originals people post. Attach the .rom in the
+MacRumors '2011 iMac Graphics Card Upgrade' thread (the graphical app can package it)."
+
 # Backup the selected adapter's current vBIOS, confirm, then flash $rom.
 do_gpu_flash() { # vendorid rom_abs gpu_name
   local ven="$1" rom="$2" name="$3"
@@ -65,7 +69,7 @@ do_gpu_flash() { # vendorid rom_abs gpu_name
       local backup; backup="$(amd_backup "$aidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
       confirm_write "AMD vBIOS" "$name (adapter $aidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
       if amd_flash "$aidx" "$rom" no; then
-        ui_msg "Done" "AMD flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup"
+        ui_msg "Done" "AMD flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup\n\n$GFL_SHARE_NOTE"
       else
         ui_msg "Flash failed" "See $GFL_LOG. Restore with:\n  amdvbflash -f -p $aidx $backup"
       fi ;;
@@ -75,7 +79,7 @@ do_gpu_flash() { # vendorid rom_abs gpu_name
       local backup; backup="$(nv_backup "$nidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
       confirm_write "NVIDIA vBIOS" "$name (index $nidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
       if nv_flash "$nidx" "$rom"; then
-        ui_msg "Done" "NVIDIA flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup"
+        ui_msg "Done" "NVIDIA flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup\n\n$GFL_SHARE_NOTE"
       else
         ui_msg "Flash failed" "See $GFL_LOG. Backup: $backup"
       fi ;;

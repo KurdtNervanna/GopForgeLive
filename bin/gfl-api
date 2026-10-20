@@ -255,7 +255,7 @@ cmd_backup_gpu() { # amd|nvidia index
 GFL_SUBMIT_DESTINATIONS='[
  {"name":"MacRumors — 2011 iMac Graphics Card Upgrade",
   "url":"https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/",
-  "how":"Where the IMAC-EFI-BOOT-SCREEN maintainer builds GOP/EnableGop firmware for new iMac cards. Post the .rom with README.txt and ask for support.",
+  "how":"Where the IMAC-EFI-BOOT-SCREEN maintainer builds GOP/EnableGop firmware for new iMac cards. Post the .rom with README.txt: a card that is not supported yet, or the original firmware of one that is (every board and firmware version helps).",
   "post_url":"https://forums.macrumors.com/threads/2011-imac-graphics-card-upgrade.1596614/latest",
   "site":"MacRumors", "host":"forums.macrumors.com",
   "for":"imac"},
