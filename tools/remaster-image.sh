@@ -41,6 +41,24 @@ while [ $# -gt 0 ]; do
 done
 
 die(){ echo "✗ $*" >&2; exit 1; }
+
+# A loop device's partition node (e.g. /dev/loop0p1). udev can take a while to
+# create it (CI runners, containers); if it never does, make it from sysfs.
+gfl_part_node() { # loopdev partno -> path
+  local l="$1" n="$2" b p i maj min
+  b="$(basename "$l")"; p="${l}p${n}"
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    [ -b "$p" ] && { echo "$p"; return 0; }
+    command -v udevadm >/dev/null 2>&1 && udevadm settle -t 2 2>/dev/null
+    partprobe "$l" 2>/dev/null || partx -u "$l" 2>/dev/null || true
+    sleep 1
+  done
+  if [ -r "/sys/block/$b/${b}p$n/dev" ]; then
+    IFS=: read -r maj min <"/sys/block/$b/${b}p$n/dev"
+    mknod "$p" b "$maj" "$min" 2>/dev/null && { echo "$p"; return 0; }
+  fi
+  return 1
+}
 say(){ printf '\033[36m» %s\033[0m\n' "$*"; }
 ok(){  printf '\033[32m✓ %s\033[0m\n' "$*"; }
 
@@ -209,9 +227,11 @@ if [ "$GROW_MB" -gt 0 ]; then
   pstart="$(sgdisk -i 1 "$OUT" 2>/dev/null | awk -F'[ :]+' '/First sector/{print $3}')"
   [ -n "$pstart" ] || die "could not read partition 1 start for resize"
   sgdisk -d 1 -n "1:${pstart}:0" -t 1:0700 "$OUT" >/dev/null 2>&1   # extend part 1 to the end
-  gl="$(losetup -fP --show "$OUT")"; sleep 1
-  command -v partprobe >/dev/null 2>&1 && partprobe "$gl" 2>/dev/null || true
-  gp="${gl}p1"; [ -b "$gp" ] || gp="$gl"
+  gl="$(losetup -fP --show "$OUT")"
+  # Never fall back to the whole loop device: fatresize on a whole disk aborts
+  # ("buffer overflow detected") — seen on GitHub runners, where udev is slow.
+  gp="$(gfl_part_node "$gl" 1)" || { losetup -d "$gl" 2>/dev/null
+    die "no partition device appeared for $gl (udev). Try again, or check that loop partitions are supported here."; }
   # target size = partition size minus a small slack, in bytes
   psz="$(sgdisk -i 1 "$OUT" 2>/dev/null | awk -F'[ :]+' '/Partition size/{print $3}')"
   bytes=$(( (${psz:-0} - 2048) * 512 ))
@@ -251,6 +271,7 @@ sleep 1
 # not directly under live/). Try partition device nodes first, then fall back to
 # an offset mount (WSL sometimes does not create loopNpN nodes).
 LIVE_MNT="$(mktemp -d)"; LIVEDIR=""; PART=""; SQ=""
+gfl_part_node "$LOOP" 1 >/dev/null || true          # give udev time to create loopNp1
 _scan_mounted() { SQ="$(find "$LIVE_MNT" -maxdepth 4 -type f -name '*.squashfs' 2>/dev/null | head -n1)"; [ -n "$SQ" ]; }
 
 for p in "${LOOP}"p*; do

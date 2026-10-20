@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Version
         id: v
@@ -54,7 +54,7 @@ jobs:
         run: sudo bash tools/build-release.sh --out "$PWD/dist" --work "$RUNNER_TEMP/build"
 
       - name: Keep the assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gopforge-live-${{ steps.v.outputs.version }}
           path: |
