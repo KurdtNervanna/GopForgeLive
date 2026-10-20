@@ -1,8 +1,23 @@
 # GopForge-Live
 
-**An all-in-one, bootable GOP boot-screen flashing wizard for EFI-era Macs.**
+**An all-in-one, bootable USB that gives upgraded Mac Pros and iMacs a native boot screen.**
+
+Built for two kinds of Mac, and nothing else:
+
+- **Mac Pro 4,1 / 5,1** (2009–2012): adds EnableGop to the Boot ROM so a modern
+  graphics card shows the boot picker and Apple logo, and can crossflash a 4,1 to 5,1
+  firmware.
+- **iMac 2009–2011** (iMac9,1 – iMac12,2) **with an upgraded MXM graphics card**:
+  flashes the card with Mac-compatible firmware so the internal screen shows the boot
+  picker and macOS works with it.
 
 ![GopForge Live — Overview on a Mac Pro 5,1](docs/screenshots/overview-macpro.png)
+
+> 🖥️ **iMac with a card you just swapped in? You still get a picture.** A new MXM card
+> runs PC firmware and shows nothing on the iMac's screen at power-on. Boot the USB
+> anyway: once Linux loads the card's driver, the internal display comes on and the app
+> appears, so you can flash the card with the screen working. See
+> [Swapped the GPU in an iMac?](#swapped-the-gpu-in-an-imac-flash-it-here-first)
 
 > ⚠️ **Status: `0.4.0-beta`.** Boots straight into the app on a real Mac Pro 5,1 and a
 > 27" iMac12,2, and reads/backs up firmware on real hardware. Its Linux EnableGop
@@ -38,6 +53,35 @@ GPU:
 3. Boot the Mac holding **⌥ Option** and pick **EFI Boot**. The app starts by itself.
 4. Follow [docs/TESTING.md](docs/TESTING.md). It walks you through backing up before
    anything is flashed.
+
+## Swapped the GPU in an iMac? Flash it here first
+
+An iMac with a newly installed MXM card that hasn't been flashed yet shows **nothing on
+its screen** at power-on: no chime picture, no boot picker, no Apple logo. The card is
+working, but its firmware doesn't support the Mac's pre-boot display. macOS often won't
+drive the internal panel with it either. You don't need another computer or an external
+monitor to fix that. GopForge-Live brings the screen up itself:
+
+1. Plug in the GopForge-Live USB and disconnect any other external drives.
+2. Power on holding **⌥ Option**. The Startup Manager is running even though the screen
+   is dark. After about 10 seconds press **→** then **Return** to pick the USB (it
+   normally sits to the right of the internal disk).
+3. Wait a minute or so. When Linux loads the card's driver, **the internal display
+   lights up and the app opens**.
+4. In **Graphics Card**, back up the card's original firmware, then flash the firmware
+   the app recommends for your iMac and card.
+5. Restart. You should now see the boot picker and Apple logo, with macOS using the
+   card.
+
+If the screen stays dark: try step 2 again, since it's easy to miss blind. On the
+iMac9,1 and 21.5" iMac10,1 (LVDS panels), Polaris and Navi cards have no LVDS output at
+all, so they can't light the internal screen. You'll need a card from the
+[compatibility table](#imac-20092011--graphics-firmware-mxm-upgrades) that supports
+LVDS. 27" iMacs with Saturn, Tonga, Pitcairn or RX 5500 XT cards can also stay dark
+before macOS loads until the
+[backlight add-on](https://github.com/Ausdauersportler/IMAC-EFI-BOOT-SCREEN/wiki/Add-on-PCB)
+is fitted. As a last resort, GRML-FLASH accepts SSH over Ethernet (see its
+[README](https://github.com/Ausdauersportler/GRML-FLASH)).
 
 ## The app
 
