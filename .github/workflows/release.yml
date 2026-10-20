@@ -1,0 +1,85 @@
+# Builds the USB image, the DVD .iso and the DVD .dmg with tools/build-release.sh.
+#
+#   * Push a tag vX.Y.Z… that matches GFL_VERSION in bin/lib/bootstrap.sh → the assets
+#     are built, audited and published as a GitHub release (a pre-release when the
+#     version has a suffix such as -beta). An existing release gets its assets replaced.
+#   * Run it by hand (Actions › Release images › Run workflow) → the assets are built
+#     and kept as a workflow artifact for 7 days; tick "draft" to also open a draft
+#     release for them.
+name: Release images
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: "Also create a draft release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          v="$(sed -nE 's/^GFL_VERSION="([^"]+)".*/\1/p' bin/lib/bootstrap.sh)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "v$v" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} doesn't match GFL_VERSION $v (bin/lib/bootstrap.sh)"; exit 1
+          fi
+          case "$v" in *-*) echo "pre=--prerelease" >> "$GITHUB_OUTPUT";; *) echo "pre=" >> "$GITHUB_OUTPUT";; esac
+
+      - name: Make room
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install build tools
+        run: sudo bash tools/build-release.sh --install-deps-only
+
+      - name: Build and audit
+        run: sudo bash tools/build-release.sh --out "$PWD/dist" --work "$RUNNER_TEMP/build"
+
+      - name: Keep the assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopforge-live-${{ steps.v.outputs.version }}
+          path: |
+            dist/*.img.xz
+            dist/*.iso
+            dist/*.dmg
+            dist/SHA256SUMS.txt
+            dist/RELEASE-NOTES.md
+          compression-level: 0
+          retention-days: 7
+
+      - name: Publish release
+        if: github.ref_type == 'tag' || inputs.draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.version }}
+          PRE: ${{ steps.v.outputs.pre }}
+        run: |
+          tag="v$V"
+          files=(dist/*.img.xz dist/*.iso dist/*.dmg dist/SHA256SUMS.txt)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            draft=""; [ "${GITHUB_REF_TYPE}" = tag ] || draft="--draft --target ${GITHUB_SHA}"
+            # shellcheck disable=SC2086
+            gh release create "$tag" "${files[@]}" --title "GopForge-Live $V" \
+              --notes-file dist/RELEASE-NOTES.md $PRE $draft
+          fi

@@ -16,21 +16,26 @@ gfl_find_usb() {
     mountpoint -q "$m" 2>/dev/null || continue
     { [ -d "$m/flash" ] || [ -d "$m/live" ] || [ -d "$m/gopforge-live" ]; } || continue
     [ -w "$m" ] || mount -o remount,rw "$m" 2>/dev/null || true
+    # A DVD (or a stick that won't remount rw) is no place for backups.
+    ( : >"$m/.gopforge-write-test" ) 2>/dev/null || continue
+    rm -f "$m/.gopforge-write-test"
     echo "$m"; return 0
   done
   return 1
 }
 
 # Working dir for the log + backups: on the USB when we can write there (so you
-# can read them on any computer afterwards), else $HOME, else /tmp (RAM-only).
+# can read them on any computer afterwards), else the RAM workdir that
+# "Save to USB" can later move onto a USB drive (storage.sh).
 gfl_resolve_workdir() {
   local d
-  for d in       "${GFL_MEDIUM:+$GFL_MEDIUM/gopforge-live}"       "${GFL_USB_MNT:-}"/gopforge-live       "${HOME:-/root}/gopforge-live"; do
+  for d in       "${GFL_MEDIUM:+$GFL_MEDIUM/gopforge-live}"       "${GFL_USB_MNT:-}"/gopforge-live; do
     [ -n "$d" ] || continue
     [ "$d" = "/gopforge-live" ] && continue          # empty GFL_USB_MNT
     case "$d" in *'*'*) continue;; esac
     if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then echo "$d"; return 0; fi
   done
+  gfl_ram_workdir && return 0
   mkdir -p /tmp/gopforge-live 2>/dev/null
   echo /tmp/gopforge-live
 }

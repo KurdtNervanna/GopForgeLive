@@ -12,7 +12,8 @@
 # the GUI can never talk it into an unsafe write:
 #   - machine gating (cMP → BootROM only, supported iMac → GPU only) unless the
 #     operator enabled Expert mode (GFL_EXPERT=1),
-#   - a verified backup taken on this USB before any GPU flash,
+#   - a verified backup taken on this USB before any GPU flash, and — when the
+#     session started from a DVD — saved to a USB drive first (save-usb),
 #   - hard blocks for ROM methods the model forbids (EG2 on iMac10,1 A1312…),
 #   - 4 MiB / fingerprint / EnableGop checks before a BootROM write,
 #   - patched BootROMs may differ from the backup only inside the DXE volume, and
@@ -72,6 +73,26 @@ allow_gpu()     { [ "${GFL_ALLOW_GPU:-0}" = 1 ]     || truthy "$GFL_EXPERT"; }
 allow_gpu_backup() { allow_gpu || [ "${GFL_MACHINE_CLASS:-}" = cmp-bootrom ]; }
 allow_bootrom() { [ "${GFL_ALLOW_BOOTROM:-0}" = 1 ] || truthy "$GFL_EXPERT"; }
 
+# Booted from a DVD, backups start out in RAM. Nothing is written to hardware until
+# they're on a USB drive too: if the write goes wrong, the backup has to survive the
+# power cycle that follows.
+require_saved() {
+  gfl_storage_persistent || truthy "$GFL_EXPERT" ||
+    refuse not_saved "your backups are only in memory — use Save to USB first, so they survive a restart (or enable Expert mode to override)"
+}
+
+# Where things are kept: kind usb|drive|ram, the drive if one is in use, and how many
+# files exist only in memory.
+storage_json() {
+  local kind drive='null' unsaved=0
+  kind="$(gfl_storage_kind)"
+  [ "$kind" = drive ] && [ -f "$GFL_RUN_DIR/drive.json" ] && drive="$(cat "$GFL_RUN_DIR/drive.json")"
+  [ "$kind" = usb ] || unsaved="$(gfl_unsaved_files | wc -l | tr -d ' ')"
+  jq -cn --arg wd "$GFL_WORKDIR" --arg med "${GFL_MEDIUM:-}" --arg log "$GFL_LOG" --arg k "$kind" \
+     --argjson d "$drive" --argjson u "${unsaved:-0}" \
+     '{workdir:$wd, medium:$med, kind:$k, on_usb:($k!="ram"), drive:$d, unsaved:$u, log:$log}'
+}
+
 setup() {
   truthy "$GFL_MOCK" || require_root
   locate_flash_tools >/dev/null 2>&1 || true
@@ -111,7 +132,7 @@ cmd_status() {
     --arg gf "$( [ -f "$GFL_GOPFORGE" ] && echo "$GFL_GOPFORGE" || true)" \
     --arg inj "$(injector_state)" --argjson fstd "$ffs_std" --argjson fdir "$ffs_dir" \
     --arg jqv "$(jq --version 2>/dev/null || true)" \
-    --arg wd "$GFL_WORKDIR" --arg med "${GFL_MEDIUM:-}" --arg log "$GFL_LOG" \
+    --argjson st "$(storage_json)" \
     --arg roms "$(find "$GFL_ROMS" -type f -iname '*.rom' 2>/dev/null | wc -l | tr -d ' ')" \
     --arg cmd "$(cat /proc/cmdline 2>/dev/null || true)" \
     '{ok:true, version:$ver, mock:($mock=="1"), expert:($expert=="1"),
@@ -119,7 +140,7 @@ cmd_status() {
                allow_bootrom:($ab=="1"), allow_gpu:($ag=="1")},
       tools:{flashrom:$fr, amdvbflash:$amd, nvflash:$nv, gopforge:$gf, jq:$jqv,
              injector:$inj, enablegop_ffs:{standard:$fstd, direct:$fdir}},
-      storage:{workdir:$wd, medium:$med, on_usb:($med!=""), log:$log},
+      storage:$st,
       library:{roms:($roms|tonumber)}, cmdline:$cmd}'
 }
 
@@ -342,6 +363,7 @@ cmd_flash_gpu() { # amd|nvidia index romfile backup [model_key]
   need vendor "${1:-}"; need index "${2:-}"; need rom "${3:-}"; need backup "${4:-}"
   local vendor="$1" idx="$2" romrel="$3" backup="$4"
   allow_gpu || refuse gated "GPU vBIOS flashing is not offered on this machine (enable Expert mode to override)"
+  require_saved
   [ "${GFL_CONFIRM:-}" = "FLASH" ] || refuse unconfirmed "type FLASH to confirm"
   in_workdir "$backup" || refuse no_backup "a verified backup of this card on the USB is required first"
   [ "$(file_size "$backup")" -gt 0 ] || refuse no_backup "the backup file is empty"
@@ -457,6 +479,7 @@ cmd_write_bootrom() { # patched original_dump
   need patched "${1:-}"; need dump "${2:-}"
   local p="$1" d="$2"
   allow_bootrom || refuse gated "BootROM flashing is only offered on Mac Pro 4,1/5,1"
+  require_saved
   [ "${GFL_CONFIRM:-}" = "FLASH BOOTROM" ] || refuse unconfirmed "type FLASH BOOTROM to confirm"
   in_workdir "$d" || refuse no_backup "the original BootROM backup must be on this USB"
   in_workdir "$p" || refuse bad_file "the patched image must be on this USB"
@@ -488,6 +511,7 @@ cmd_restore_bootrom() { # backup
   need backup "${1:-}"
   local b="$1"
   allow_bootrom || refuse gated "BootROM work is only offered on Mac Pro 4,1/5,1"
+  require_saved
   [ "${GFL_CONFIRM:-}" = "RESTORE BOOTROM" ] || refuse unconfirmed "type RESTORE BOOTROM to confirm"
   in_workdir "$b" || refuse no_backup "the backup must be on this USB"
   case "$b" in */firmware/Backups/*.rom) : ;; *) refuse bad_file "not a Boot ROM backup: $(basename "$b")" ;; esac
@@ -563,6 +587,7 @@ cmd_write_rebuilt() { # image original_dump
   need image "${1:-}"; need dump "${2:-}"
   local img="$1" d="$2"
   allow_bootrom || refuse gated "BootROM flashing is only offered on Mac Pro 4,1/5,1"
+  require_saved
   [ "${GFL_CONFIRM:-}" = "REBUILD BOOTROM" ] || refuse unconfirmed "type REBUILD BOOTROM to confirm"
   in_workdir "$d" || refuse no_backup "the original Boot ROM backup must be on this USB"
   in_workdir "$img" || refuse bad_file "the rebuilt image must be on this USB"
@@ -593,6 +618,7 @@ cmd_restore_gpu() { # amd|nvidia index backup
   need vendor "${1:-}"; need index "${2:-}"; need backup "${3:-}"
   local vendor="$1" idx="$2" b="$3"
   allow_gpu || refuse gated "GPU vBIOS work is not offered on this machine (enable Expert mode to override)"
+  require_saved
   [ "${GFL_CONFIRM:-}" = "RESTORE" ] || refuse unconfirmed "type RESTORE to confirm"
   in_workdir "$b" || refuse no_backup "the backup must be on this USB"
   [ "$(file_size "$b")" -gt 0 ] || refuse bad_file "the backup file is empty"
@@ -621,8 +647,48 @@ cmd_backups() {
       --arg t "$(date -r "$f" '+%Y-%m-%d %H:%M' 2>/dev/null || true)" \
       '. + [$fj + {kind:$k, modified:$t}]' <<<"$rows")"
   done
-  emit --argjson r "$rows" --arg wd "$GFL_WORKDIR" --arg med "${GFL_MEDIUM:-}" \
-       '{ok:true, workdir:$wd, on_usb:($med!=""), files:($r|sort_by(.modified)|reverse)}'
+  emit --argjson r "$rows" --arg wd "$GFL_WORKDIR" --argjson st "$(storage_json)" \
+       '{ok:true, workdir:$wd, on_usb:$st.on_usb, storage:$st, files:($r|sort_by(.modified)|reverse)}'
+}
+
+cmd_storage() { # status + the USB drives "Save to USB" can use
+  emit --argjson st "$(storage_json)" --argjson t "$(gfl_save_targets)" '{ok:true, storage:$st, targets:$t}'
+}
+
+cmd_save_usb() { # /dev/X — copy everything from RAM to that drive and keep using it
+  need dev "${1:-}"
+  local dev="$1" t fs mp rc=0 counts dest
+  case "$(gfl_storage_kind)" in
+    usb)   refuse not_needed "this session already saves to the USB it started from" ;;
+    drive) refuse in_use "already saving to $(jq -r '.label // .dev' "$GFL_RUN_DIR/drive.json" 2>/dev/null) — eject it first to switch drives" ;;
+  esac
+  t="$(gfl_save_targets | jq -c --arg d "$dev" '[.[] | select(.dev == $d)][0] // empty')"
+  [ -n "$t" ] || refuse bad_target "$dev is not a USB drive that can be saved to"
+  fs="$(jq -r .fstype <<<"$t")"
+  info "Mounting $dev ($fs)…"
+  mp="$(gfl_save_mount "$dev" "$fs")" || rc=$?
+  case "$rc" in
+    0) : ;;
+    2) fail read_only "$dev mounted read-only. Mac (HFS+ Journaled) drives can't be written from Linux — use a drive formatted FAT32 (MS-DOS) or exFAT" ;;
+    *) fail mount_failed "couldn't mount $dev ($fs) — see the log" ;;
+  esac
+  dest="$mp/gopforge-live"
+  info "Copying the log and backups to ${dest}…"
+  counts="$(gfl_save_to "$dest")" || { rc=$?; fail save_failed "copying to $dev failed$([ "$rc" = 3 ] && echo ' (a copy did not match — the drive may be failing)') — your files are still in memory"; }
+  jq -cn --arg dev "$dev" --arg mp "$mp" --arg l "$(jq -r .label <<<"$t")" --arg f "$fs" \
+     --arg m "$(jq -r .model <<<"$t")" '{dev:$dev, mountpoint:$mp, label:$l, fstype:$f, model:$m}' >"$GFL_RUN_DIR/drive.json"
+  local n s r; read -r n s r <<<"$counts"
+  ok "Saved to $dev: $n copied, $s already there$([ "$r" != 0 ] && echo ", $r renamed"). New backups and the log now go straight to this drive."
+  _log API "save-usb $dev -> $dest ($n copied, $s skipped, $r renamed)"
+  emit --argjson st "$(storage_json)" --argjson c "$n" --argjson s "$s" --argjson r "$r" \
+       '{ok:true, storage:$st, copied:$c, skipped:$s, renamed:$r}'
+}
+
+cmd_eject_usb() {
+  [ "$(gfl_storage_kind)" = drive ] || refuse not_needed "no USB drive is in use"
+  _log API "eject-usb"
+  gfl_save_eject
+  emit --argjson st "$(storage_json)" '{ok:true, storage:$st}'
 }
 
 cmd_log() { # [lines]
@@ -661,6 +727,9 @@ main() {
     rebuild-bootrom) cmd_rebuild_bootrom "$@" ;;
     write-rebuilt)   cmd_write_rebuilt "$@" ;;
     backups)         cmd_backups ;;
+    storage)         cmd_storage ;;
+    save-usb)        cmd_save_usb "$@" ;;
+    eject-usb)       cmd_eject_usb ;;
     snapshot)        gfl_log_session app; emit '{ok:true}' ;;
     log)             cmd_log "$@" ;;
     *)               fail usage "unknown command: $c" 64 ;;

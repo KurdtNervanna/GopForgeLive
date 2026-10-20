@@ -45,8 +45,11 @@ function sidebar() {
       ${navItem("activity", "terminal", "graphite", "Activity", { meta: running ? spinner() : "" })}
     </div>
     <div class="sidebar-foot">
-      <div class="storage-chip"><span class="dot ${st.storage.on_usb ? "green" : "orange"}"></span>
-        <span>${st.storage.on_usb ? "Saving backups to the USB" : "No writable USB — memory only"}</span></div>
+      ${st.storage.kind === "usb"
+        ? html`<div class="storage-chip"><span class="dot green"></span><span>Saving backups to the USB</span></div>`
+        : html`<button class="storage-chip link" data-act="sheet" data-sheet="storage" title="Where backups and the log are kept">
+            <span class="dot ${st.storage.kind === "drive" ? "green" : "orange"}"></span>
+            <span>${st.storage.kind === "drive" ? `Saving to “${st.storage.drive?.label || st.storage.drive?.dev}”` : "Memory only — Save to USB…"}</span></button>`}
       ${when(ex, () => html`<div class="storage-chip"><span class="dot orange"></span><span>Expert Mode on</span></div>`)}
       <div class="foot-row"><span class="t-caption faint">v${st.version}</span>
         <span><button class="btn icon" data-act="sheet" data-sheet="settings" title="Settings">${icon("sliders")}</button></span></div>

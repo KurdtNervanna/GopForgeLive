@@ -74,6 +74,26 @@ export function jobBlock(job, labels = {}) {
     </div>`;
 }
 
+/** Where backups and the log are kept, in words: the boot USB, a saved-to drive, or RAM. */
+export function storagePlace(st = S.status?.storage) {
+  if (!st || st.kind === "ram") return "Memory only — lost at shut-down";
+  if (st.kind === "drive") return `USB drive “${st.drive?.label || st.drive?.dev || "USB"}”`;
+  return "This USB drive";
+}
+
+/** Writes are allowed once backups are on a USB (the engine re-checks this itself). */
+export const canWrite = () => S.status?.storage?.kind !== "ram" || !!S.status?.expert;
+
+/** Booted read-only (DVD): nothing gets flashed until the backups are on a USB drive. */
+export function saveFirstCallout(what = "Flashing") {
+  const st = S.status?.storage;
+  if (!st || st.kind !== "ram") return "";
+  return html`<div class="section">${callout("warn", "Save your backups to a USB drive first",
+    html`This session started from a disc, so backups and the log are only in memory. ${what} stays locked until they’re
+      copied to a USB drive, so they survive a restart if something goes wrong.
+      <div style="margin-top:10px"><button class="btn primary" data-act="sheet" data-sheet="storage">${icon("usb")} Save to USB…</button></div>`)}</div>`;
+}
+
 /** Locked (gated) state for a flow page. */
 export const locked = (title, body) => html`
   <div class="empty">

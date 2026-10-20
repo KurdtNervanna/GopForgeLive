@@ -51,6 +51,8 @@ ACTIONS: dict[str, dict] = {
     "rebuild-bootrom": {"args": ["dump", "variant"], "hw": False},
     "gpu-submission": {"args": ["vendor", "index", "backup"], "hw": False},
     "write-rebuilt":  {"args": ["image", "dump"], "hw": True, "confirm": "REBUILD BOOTROM"},
+    "save-usb":       {"args": ["dev"], "hw": False},     # DVD sessions: copy RAM files to a USB drive
+    "eject-usb":      {"args": [], "hw": False},
 }
 EXPERT_PHRASE = "I UNDERSTAND"
 
@@ -268,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(res)
         if route == "hardware":          # runs inxi/lshw/smartctl too — give it time
             return self.send_json(run_api(["hardware"], timeout=240))
-        if route in ("gpus", "library", "backups", "hw-summary"):
+        if route in ("gpus", "library", "backups", "hw-summary", "storage"):
             return self.send_json(run_api([route]))
         if route == "model":
             return self.send_json(run_api(["model"] + ([q["key"]] if q.get("key") else [])))

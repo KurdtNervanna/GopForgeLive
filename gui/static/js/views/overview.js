@@ -4,7 +4,7 @@ import { icon, status, sq } from "../icons.js";
 import { macArt } from "../art.js";
 import { S, actions, update } from "../core.js";
 import { api } from "../api.js";
-import { section, callout, kv, navRow } from "../components.js";
+import { section, callout, kv, navRow, storagePlace, saveFirstCallout } from "../components.js";
 import { macInfo, CLASS, gpuName } from "../macs.js";
 
 export const title = "Overview";
@@ -112,9 +112,10 @@ export function render() {
         ${kv("Processors", cpuText(S.hwsum))}
         ${kv("Memory", memText(S.hwsum))}
         ${kv("Boot ROM version", S.hwsum?.bootrom?.version || (S.hwsum ? "—" : "Detecting…"))}
-        ${kv("Backups & log saved to", st.storage.on_usb ? "This USB drive" : "Memory only — lost at shut-down")}
+        ${kv("Backups & log saved to", storagePlace(st.storage))}
         ${kv("GopForge Live", st.version)}
-      </div>`, when(!st.storage.on_usb, () => "The USB’s data partition wasn’t found writable, so backups can’t be kept. Don’t flash anything until this is resolved."))}
+      </div>`, when(st.storage.kind === "ram", () => "Nothing writable was found to boot from (a disc, or a USB whose data partition is read-only), so backups stay in memory until you use Save to USB. Flashing stays locked until then."))}
+    ${saveFirstCallout("Flashing")}
 
     ${section("Tools on This Disk", toolRows(st))}
 

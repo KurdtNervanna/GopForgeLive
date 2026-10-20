@@ -16,6 +16,13 @@ screens instead of menus.
 | **ROM Library** | The full IMAC-EFI-BOOT-SCREEN collection, searchable. |
 | **Activity** | The session log (also saved to the USB). |
 
+The chip at the bottom of the sidebar says where backups and the log are kept. Started
+from a DVD it reads **Memory only — Save to USB…**: click it to pick a USB drive (FAT32,
+exFAT, NTFS or Linux; journaled Mac drives can't be written). Everything is copied into
+`gopforge-live/` on that drive and verified by SHA-256, then new files go straight there
+and the chip shows the drive's name. Click it again to **Eject**. Shut Down / Restart warn
+when files exist only in memory.
+
 Pages that don't apply to the detected Mac are locked (🔒). **Settings** has Light/Dark
 appearance, three text sizes (handy on a 27-inch iMac), Expert Mode, and *Switch to
 Text Mode*. The **power** button offers Restart, Shut Down and Text Mode.
@@ -26,7 +33,9 @@ Every write is re-checked by `bin/gfl-api` no matter what the app sends:
 
 - machine gating (Mac Pro → Boot ROM only; iMac → graphics firmware only) unless
   Expert Mode is on (typed `I UNDERSTAND`),
-- a verified backup of *that* card / chip on the USB before anything is flashed,
+- a verified backup of *that* card / chip on the USB before anything is flashed — and
+  when the session started from a DVD, that backup must already be saved to a USB drive
+  (refused with `not_saved` otherwise),
 - firmware known not to work on your model (e.g. EG2 on the 27-inch iMac10,1) is
   blocked,
 - Boot ROM images must be 4 MB with the Mac Pro fingerprint and exactly one EnableGop,
@@ -97,6 +106,8 @@ dev/run-gui-dev.sh PC none                # unsupported machine
 GFL_MOCK_FAIL=write dev/run-gui-dev.sh    # make the Boot ROM write fail
 GFL_MOCK_DRIFT=1 dev/run-gui-dev.sh       # NVRAM changes between reads → stale-backup path
 GFL_MOCK_LOCKED=1 dev/run-gui-dev.sh      # chip write-protected like a normal cMP boot
+GFL_MOCK_MEDIA=dvd dev/run-gui-dev.sh iMac12,2 wx4150   # started from a DVD: memory only + Save to USB
+                                          # (simulated drives land in dev/mock/drives/)
 ```
 
 `dev/screenshots.py` regenerates the README screenshots (`docs/screenshots/`) from these

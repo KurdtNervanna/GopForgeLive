@@ -4,7 +4,7 @@ import { icon, sq, status } from "../icons.js";
 import { gpuArt, successArt } from "../art.js";
 import { api } from "../api.js";
 import { S, actions, update, runJob, openSheet, toast, jobRunning } from "../core.js";
-import { section, callout, steps, fileCard, jobBlock, locked, methodBadge } from "../components.js";
+import { section, callout, steps, fileCard, jobBlock, locked, methodBadge, saveFirstCallout, canWrite } from "../components.js";
 import { gpuName, gpuChip, method, romTitle, romTags } from "../macs.js";
 
 export const title = "Graphics Card";
@@ -393,6 +393,7 @@ function viewFlash() {
   return html`<div class="panel">
     <div class="panel-head"><div style="width:84px;height:84px;flex:none">${gpuArt()}</div>
       <div class="txt"><h2 class="t-title2">Ready to flash</h2><p>Review what will be written. You’ll be asked to confirm before anything changes.</p></div></div>
+    ${saveFirstCallout("Flashing")}
     <div class="group">
       <div class="row">${sq("gpu", "red")}<div class="main-col"><div class="title">Card</div><div class="subtitle">${gpuName(gpu.name)} · adapter #${g.adapter}</div></div></div>
       <div class="row">${methodBadge(g.rom.method)}<div class="main-col"><div class="title">New firmware</div><div class="subtitle">${romTitle(g.rom.file)} · ${method(g.rom.method).name}</div></div>${status(blocked(g.rom) ? "bad" : g.rom.marker.level)}</div>
@@ -401,11 +402,11 @@ function viewFlash() {
     ${when(blocked(g.rom), () => html`<div style="margin-top:var(--s4)">${callout("danger", "Expert override", `${g.rom.marker.text}. You’ve chosen it with Expert Mode on.`)}</div>`)}
     ${backlightCallout(card(), g.plan, "inline")}
     <div style="margin-top:var(--s4)">${callout("warn", "If the screen stays dark afterwards",
-      html`Boot this USB again with another graphics card (or connect over SSH — user <span class="mono">root</span>, password <span class="mono">flash</span>) and restore <span class="mono">${g.backup.name}</span>.`)}</div>
+      html`Start GopForge Live again with another graphics card (or connect over SSH — user <span class="mono">root</span>, password <span class="mono">flash</span>) and restore <span class="mono">${g.backup.name}</span>.`)}</div>
     ${jobBlock(j, { running: "Flashing…", done: "Firmware written", failed: "Flashing failed" })}
     <div class="btn-row">
       <button class="btn" data-act="gpu-back" ${jobRunning() ? "disabled" : ""}>${icon("chevronLeft")} Back</button><span class="grow"></span>
-      <button class="btn destructive large" data-act="gpu-flash" ${jobRunning() ? "disabled" : ""}>${icon("bolt")} Flash Graphics Firmware…</button>
+      <button class="btn destructive large" data-act="gpu-flash" ${jobRunning() || !canWrite() ? "disabled" : ""}>${icon("bolt")} Flash Graphics Firmware…</button>
     </div>
   </div>`;
 }

@@ -6,7 +6,7 @@ import { icon, sq, status } from "../icons.js";
 import { chipArt, successArt } from "../art.js";
 import { api } from "../api.js";
 import { S, actions, update, runJob, openSheet, toast, jobRunning } from "../core.js";
-import { section, callout, checkRow, steps, fileCard, jobBlock, locked } from "../components.js";
+import { section, callout, checkRow, steps, fileCard, jobBlock, locked, storagePlace, saveFirstCallout, canWrite } from "../components.js";
 import { macInfo } from "../macs.js";
 
 export const title = "4,1→5,1 Crossflash";
@@ -224,6 +224,7 @@ function viewFlash() {
     bios_id: "Firmware is 144.0.0.0.0" };
   return html`<div class="panel">
     ${panelHead("Ready to write", "The image was rebuilt and re-read as if it were a fresh dump. Every check below passed.")}
+    ${saveFirstCallout("Writing")}
     <div class="group checks">${Object.keys(label).map((k) => checkRow(c[k] ? "ok" : "bad", label[k]))}
       ${checkRow("info", "Your Boot ROM is re-read first", "Nothing is written unless the chip still matches your backup")}</div>
     ${section("What will be written", html`<div class="group">
@@ -247,7 +248,7 @@ function viewFlash() {
     <div class="btn-row">
       <button class="btn" data-act="rb-reset" ${jobRunning() ? "disabled" : ""}>Start Over</button><span class="grow"></span>
       ${needExpert ? html`<button class="btn" data-act="sheet" data-sheet="settings">${icon("sliders")} Open Settings</button>` : ""}
-      <button class="btn destructive large" data-act="rb-flash" ${jobRunning() || r.locked || r.stale || needExpert ? "disabled" : ""}>${icon("bolt")} ${isCross() ? "Crossflash…" : "Write Boot ROM…"}</button>
+      <button class="btn destructive large" data-act="rb-flash" ${jobRunning() || r.locked || r.stale || needExpert || !canWrite() ? "disabled" : ""}>${icon("bolt")} ${isCross() ? "Crossflash…" : "Write Boot ROM…"}</button>
     </div>
   </div>`;
 }

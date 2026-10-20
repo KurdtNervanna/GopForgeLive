@@ -32,7 +32,12 @@ Backups/
 
 # GUI dev: simulated USB + cached tools
 /dev/mock/usb/
+/dev/mock/run/
+/dev/mock/drives/
 /dev/.cache/
+# Release build output (tools/build-release.sh)
+/dist/
+/build/
 
 # Python bytecode
 __pycache__/

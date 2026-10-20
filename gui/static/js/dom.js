@@ -52,7 +52,8 @@ export function onUsbPath(p, storage) {
   if (!p) return "";
   const wd = storage?.workdir || "";
   const rel = wd && p.startsWith(wd) ? p.slice(wd.length).replace(/^\//, "") : basename(p);
-  return storage?.on_usb ? `USB › gopforge-live › ${rel.split("/").join(" › ")}` : `RAM › ${rel}`;
+  const where = storage?.kind === "drive" ? (storage.drive?.label || "USB drive") : "USB";
+  return storage?.on_usb ? `${where} › gopforge-live › ${rel.split("/").join(" › ")}` : `Memory › ${rel.split("/").join(" › ")}`;
 }
 
 /** Colour a console line by the engine's ✓ ✗ ! » markers. */

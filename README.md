@@ -46,13 +46,21 @@ GPU:
 
 ## Quick start
 
-1. Download `gopforge-live-<version>.img.xz` from
-   [**Releases**](https://github.com/KurdtNervanna/GopForgeLive/releases).
-2. Write it to a USB stick (2 GB or more) with [balenaEtcher](https://etcher.balena.io/).
-   Etcher reads the `.xz` directly. This erases the stick.
-3. Boot the Mac holding **⌥ Option** and pick **EFI Boot**. The app starts by itself.
-4. Follow [docs/TESTING.md](docs/TESTING.md). It walks you through backing up before
+1. Download from [**Releases**](https://github.com/KurdtNervanna/GopForgeLive/releases):
+   - **USB stick (recommended):** `gopforge-live-<version>.img.xz`. Write it to a stick of
+     2 GB or more with [balenaEtcher](https://etcher.balena.io/), which reads the `.xz`
+     directly. This erases the stick.
+   - **DVD:** `gopforge-live-<version>.iso` to burn from Windows or Linux, or
+     `gopforge-live-<version>.dmg` to burn on a Mac. It's about 1 GB, so use a DVD±R (a
+     700 MB CD is too small).
+2. Boot the Mac holding **⌥ Option** and pick **EFI Boot**. The app starts by itself.
+3. Follow [docs/TESTING.md](docs/TESTING.md). It walks you through backing up before
    anything is flashed.
+
+**Booting from a DVD?** A disc can't be written to, so backups and the log stay in memory
+until you choose **Save to USB…** at the bottom of the sidebar and pick a FAT32 or exFAT
+USB drive. Nothing is flashed until they're saved. See
+[docs/INSTALL.md](docs/INSTALL.md#b-dvd).
 
 ## Swapped the GPU in an iMac? Flash it here first
 
@@ -260,13 +268,24 @@ dev/                    # run-gui-dev.sh + mock hardware for developing off-Mac
 bin/lib/                # ui, detect, library, vbios, bootrom, safety
 catalog/                # imac-boot-screen-matrix.json + SCHEMA.md (model/panel/memory rules)
 docs/                   # INSTALL / TESTING / WORKFLOW / RECOVERY / GUI / REMASTER
-tools/                  # fetch-vendor, fetch-roms, dxeinject-linux, install-to-usb, remaster-image
+tools/                  # fetch-*, dxeinject-linux, remaster-image, make-iso, build-release, release-check
 flash-usb/              # Windows/macOS/Linux USB writers + base-image fetcher
 vendor/gopforge/        # populated by tools/fetch-vendor.sh (not committed)
 roms/                   # full IMAC-EFI-BOOT-SCREEN vBIOS library (GPL-3.0, fetched, not committed)
 ```
 
 ## Make the bootable USB (Windows / macOS / Linux)
+
+Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml))
+with one script, which you can also run yourself on Linux or WSL:
+
+```bash
+sudo tools/build-release.sh --install-deps   # → dist/: USB .img.xz, DVD .iso + .dmg, SHA256SUMS.txt
+```
+
+It pins the GRML-FLASH base image, audits every image with `tools/release-check.sh`, and
+is described step by step in [docs/INSTALL.md](docs/INSTALL.md#build-the-images-yourself-linux-or-wsl-as-root).
+The manual steps it automates:
 
 ```bash
 ./tools/fetch-vendor.sh                 # GopForge + EnableGop tooling
@@ -297,8 +316,8 @@ autostart onto the data partition without remastering, is older and untested.)
 
 ## Boot the target machine
 
-Power on the Mac holding **⌥ Option** and pick the USB (**EFI Boot**). The remastered
-image opens the app automatically (text wizard as fallback); on a plain GRML-FLASH USB
+Power on the Mac holding **⌥ Option** and pick the USB or DVD (**EFI Boot**). Both
+open the app automatically (text wizard as fallback); on a plain GRML-FLASH USB
 run `sudo bash bin/gopwizard.sh`. It **detects the machine and offers only what applies**:
 
 | Machine | Offered |
@@ -315,7 +334,9 @@ See [docs/INSTALL.md](docs/INSTALL.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md).
   the detected machine (an unsupported machine gets nothing unless you knowingly
   enable the Expert override).
 - Every hardware write is preceded by a **verified backup** (size + sha256), and
-  **Backups › Restore** puts any of them back from inside the app.
+  **Backups › Restore** puts any of them back from inside the app. When the session
+  started from a DVD, nothing is written until those backups are saved to a USB drive
+  (**Save to USB…**), so they survive the restart if a flash goes wrong.
 - GPU ROMs are recommended from the **iMac boot-screen matrix**, which detects your
   iMac model + GPU and marks each candidate **✓ suitable / ⚠ caution / ✗ won't work**
   (Polaris has no LVDS; iMac9,1 needs EnableGop91; memory-vendor ROMs must match your

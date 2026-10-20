@@ -59,6 +59,48 @@ GFL_SHARE_NOTE="Please share that backup (your card's original firmware): new ca
 firmware versions get supported from originals people post. Attach the .rom in the
 MacRumors '2011 iMac Graphics Card Upgrade' thread (the graphical app can package it)."
 
+# Save to USB drive (sessions booted from a DVD keep files in RAM until then).
+# Runs the same gfl-api command as the app, so both share one implementation.
+flow_save_usb() {
+  local api=(env GFL_EXPERT="${GFL_EXPERT:-0}" GFL_MEDIUM="${GFL_MEDIUM:-}" GFL_WORKDIR="$GFL_WORKDIR" bash "$GFL_BIN/gfl-api")
+  if [ "$(gfl_storage_kind)" = drive ]; then
+    ui_yesno "Saving to a USB drive" "Files already go to $(jq -r '"\(.label) (\(.dev))"' "$GFL_RUN_DIR/drive.json" 2>/dev/null).
+
+Eject it now (so it can be unplugged)?" || return 0
+    "${api[@]}" eject-usb >/dev/null 2>"$GFL_TTY" && ui_msg "Ejected" "You can unplug the drive. New files stay in memory until you save again."
+    return 0
+  fi
+  local items=() d label
+  while IFS=$'\t' read -r d label; do
+    [ -n "$d" ] && items+=( "$d" "$label" )
+  done < <("${api[@]}" storage 2>/dev/null | jq -r '.targets[]? | [.dev, ((.label // "") + "  " + .fstype + "  " + ((.size/1e9*10|floor)/10|tostring) + " GB  " + .model)] | @tsv')
+  if [ "${#items[@]}" -eq 0 ]; then
+    ui_msg "No USB drive found" "Plug in a USB drive formatted FAT32 (MS-DOS) or exFAT, wait a few seconds,
+then choose Save to USB drive again."
+    return 0
+  fi
+  d="$(ui_menu "Save to USB drive" "Backups, reports and the log are copied into a gopforge-live folder on
+the drive you choose and checked; new files then go straight to it." "${items[@]}")" || return 0
+  local out rc=0
+  out="$("${api[@]}" save-usb "$d" 2>"$GFL_TTY")" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    ui_msg "Saved" "$(jq -r '"\(.copied) copied, \(.skipped) already there. New files now go straight to the drive."' <<<"$out")"
+  else
+    ui_msg "Not saved" "$(jq -r '.error // "see the log"' <<<"$out" 2>/dev/null || echo "see $GFL_LOG")"
+  fi
+}
+
+# No hardware write while the backup exists only in RAM (DVD boot) — unless expert.
+require_saved_tui() {
+  gfl_storage_persistent && return 0
+  [ "${GFL_EXPERT:-0}" = 1 ] && return 0
+  ui_msg "Save your backups first" "This session started from a disc, so the backup you just took is only in memory.
+Nothing will be written until it's on a USB drive too, so it survives a restart
+if something goes wrong. Choose a drive next; then run this step again."
+  flow_save_usb
+  gfl_storage_persistent
+}
+
 # Backup the selected adapter's current vBIOS, confirm, then flash $rom.
 do_gpu_flash() { # vendorid rom_abs gpu_name
   local ven="$1" rom="$2" name="$3"
@@ -67,6 +109,7 @@ do_gpu_flash() { # vendorid rom_abs gpu_name
       ui_textbox "AMD adapters (amdvbflash -i)" <(amd_list)
       local aidx; aidx="$(ui_menu "AMD adapter index" "Pick the amdvbflash adapter index for this card." 0 "index 0" 1 "index 1" 2 "index 2")" || return 0
       local backup; backup="$(amd_backup "$aidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
+      require_saved_tui || return 0
       confirm_write "AMD vBIOS" "$name (adapter $aidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
       if amd_flash "$aidx" "$rom" no; then
         ui_msg "Done" "AMD flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup\n\n$GFL_SHARE_NOTE"
@@ -77,6 +120,7 @@ do_gpu_flash() { # vendorid rom_abs gpu_name
       ui_textbox "NVIDIA adapters (nvflash --list)" <(nv_list)
       local nidx; nidx="$(ui_menu "NVIDIA index" "Pick the nvflash index for this card." 0 "index 0" 1 "index 1")" || return 0
       local backup; backup="$(nv_backup "$nidx")" || { ui_msg "Backup failed" "Not flashing."; return 0; }
+      require_saved_tui || return 0
       confirm_write "NVIDIA vBIOS" "$name (index $nidx)" "rom: $(basename "$rom")\nbackup: $backup" no || return 0
       if nv_flash "$nidx" "$rom"; then
         ui_msg "Done" "NVIDIA flash reported success.\nPower OFF fully before rebooting.\nBackup: $backup\n\n$GFL_SHARE_NOTE"
@@ -234,6 +278,7 @@ direct   = GPUs needing DirectGopRendering (e.g. some Vega)." \
   local patched; patched="$(bootrom_inject "$dump" "$variant")" \
     || { ui_msg "Injection failed" "See $GFL_LOG. Nothing was written to hardware."; return 0; }
 
+  require_saved_tui || return 0
   confirm_write "Mac BootROM" "${GFL_MAC_MODEL:-BootROM} ($GFL_FLASHROM_PROG)" \
     "backup: $dump\npatched: $patched" yes || { ui_msg "Cancelled" "Backup kept at $dump."; return 0; }
 
@@ -377,6 +422,10 @@ main_menu() {
       if [ "$GFL_EXPERT" = 1 ]; then args+=( expert "Expert override: ON — disable it" )
       else                          args+=( expert "Expert override: unlock paths anyway" ); fi
     fi
+    case "$(gfl_storage_kind)" in
+      ram)   args+=( save "Save to USB drive — files are only in memory" ) ;;
+      drive) args+=( save "Saving to a USB drive — eject it" ) ;;
+    esac
     args+=( log "View log" quit "Quit" )
 
     local gate
@@ -397,6 +446,7 @@ $GFL_MACHINE_NOTE" "${args[@]}")" || break
       rom)    flow_bootrom ;;
       dump)   flow_dumps ;;
       restore) flow_restore ;;
+      save)   flow_save_usb ;;
       expert)
         if [ "$GFL_EXPERT" = 1 ]; then GFL_EXPERT=0; warn "expert override disabled"
         elif ui_yesno "Enable expert override?" \

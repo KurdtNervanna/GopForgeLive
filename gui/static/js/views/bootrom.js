@@ -3,7 +3,7 @@ import { html, when, fmtExact, shortHash } from "../dom.js";
 import { icon, sq, status } from "../icons.js";
 import { chipArt, successArt } from "../art.js";
 import { S, actions, update, runJob, openSheet, toast, jobRunning, refreshStatus } from "../core.js";
-import { section, callout, checkRow, steps, fileCard, jobBlock, locked } from "../components.js";
+import { section, callout, checkRow, steps, fileCard, jobBlock, locked, storagePlace, saveFirstCallout, canWrite } from "../components.js";
 import { macInfo } from "../macs.js";
 import { api } from "../api.js";
 
@@ -165,9 +165,9 @@ function viewBackup() {
       "GopForge Live first reads the complete Boot ROM chip and saves the copy to this USB drive. Nothing is changed. Keep this file — it’s your way back.")}
     <div class="group">
       <div class="row">${sq("chip", "orange")}<div class="main-col"><div class="title">Source</div><div class="subtitle">SPI flash chip, read in place with flashrom</div></div></div>
-      <div class="row">${sq("usb", usb ? "blue" : "gray")}<div class="main-col"><div class="title">Saved to</div><div class="subtitle">${usb ? "USB › gopforge-live › firmware › Backups" : "Memory only — will be lost at shut-down"}</div></div>${status(usb ? "ok" : "warn")}</div>
+      <div class="row">${sq("usb", usb ? "blue" : "gray")}<div class="main-col"><div class="title">Saved to</div><div class="subtitle">${usb ? `${storagePlace()} › gopforge-live › firmware › Backups` : "Memory only — will be lost at shut-down"}</div></div>${status(usb ? "ok" : "warn")}</div>
     </div>
-    ${when(!usb, () => callout("warn", "Backups can’t be kept", "The USB’s data partition isn’t writable. You can still read the chip, but don’t flash anything."))}
+    ${saveFirstCallout("Flashing")}
     ${jobBlock(j, { running: "Reading the Boot ROM…", done: "Backup complete", failed: "The Boot ROM couldn’t be read" })}
     ${when(j && j.state !== "running" && j.state !== "done", () => callout("info", "If this keeps failing",
       html`flashrom needs direct hardware access. This disk boots with <span class="mono">iomem=relaxed</span> for that; if you booted a different entry, restart and pick the default one.`))}
@@ -266,6 +266,7 @@ function viewFlash() {
   const j = myJob("write-bootrom");
   return html`<div class="panel">
     ${panelHead(chipArt(), "Ready to flash", "Everything checks out. Review the details, then write the patched image to the Boot ROM.")}
+    ${saveFirstCallout("Flashing")}
     <div class="group checks">
       ${checkRow(p.size === b.facts.size ? "ok" : "bad", "Same size as your original", fmtExact(p.size))}
       ${checkRow(p.enablegop_count === 1 ? "ok" : "bad", "EnableGop installed exactly once", b.variant === "direct" ? "Direct variant" : "Standard variant")}
@@ -293,7 +294,7 @@ function viewFlash() {
     <div class="btn-row">
       <button class="btn" data-act="br-reset" ${jobRunning() ? "disabled" : ""}>Start Over</button>
       <span class="grow"></span>
-      <button class="btn destructive large" data-act="br-flash" ${jobRunning() || b.stale || b.prot?.blocks_patch ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
+      <button class="btn destructive large" data-act="br-flash" ${jobRunning() || b.stale || b.prot?.blocks_patch || !canWrite() ? "disabled" : ""}>${icon("bolt")} Flash Boot ROM…</button>
     </div>
   </div>`;
 }
@@ -312,7 +313,7 @@ function viewFinish() {
       ${tip(2, "Hold ⌥ Option while powering on", "The native startup picker should appear on your graphics card.")}
       ${tip(3, "Black until the picker is normal", "On non-Apple GPUs a plain boot may not draw the grey logo — the picker is the test.")}
       ${tip(4, "No picker at all?", "Try the Direct variant, or your card may also need GOP in its own firmware.")}
-      ${tip(5, "Want the original back?", "Boot this USB again and use Backups › Restore on your Boot ROM backup.")}
+      ${tip(5, "Want the original back?", "Start GopForge Live again and use Backups › Restore on your Boot ROM backup.")}
     </div>`, "Your original Boot ROM stays on this USB in gopforge-live › firmware › Backups — copy it somewhere safe too.")}
     <div class="btn-row">
       <button class="btn" data-act="go" data-to="backups">${icon("archive")} View Backups</button>

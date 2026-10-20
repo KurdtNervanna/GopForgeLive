@@ -72,12 +72,25 @@ mode, a CH341A on hand, and a backup copied off the USB.
 3. **Back Up Card Firmware.** Stop here for the first run, and send back the log and
    the backup file's size.
 
+## Booting from the DVD
+
+Tested in QEMU (UEFI, the ISO as a CD-ROM drive) but not yet on a real Mac's SuperDrive.
+
+1. Hold **⌥ Option**: the disc should appear as **EFI Boot** (a disc icon). Booting from
+   DVD is slower than USB; give it a minute or two.
+2. The sidebar shows **Memory only — Save to USB…**, and the Flash buttons are locked.
+3. Plug in a FAT32 or exFAT USB drive, click the chip, pick the drive, **Save Here**. The
+   chip should change to the drive's name and the drive should get a `gopforge-live`
+   folder with the log.
+4. **Eject**, unplug, and check the folder on another computer.
+
 ## If something goes wrong
 
 - If the app doesn't come up, create an empty file named `gopforge-tui` at the top level
   of the USB to get the text wizard. You can also press Ctrl-C during the countdown for
   a shell.
-- Logs: `gopforge-live/gopforge-live.log` on the USB. If X fails, also look in
+- Logs: `gopforge-live/gopforge-live.log` on the USB (from a DVD: on the drive you saved
+  to, or `/run/gopforge-live/work/` before saving). If X fails, also look in
   `/run/gopforge-gui/`.
 - **Overview › Full Hardware Report** saves `gopforge-live/reports/hardware-*.txt`
   (CPUs, memory, PCI/USB, Wi-Fi, disks). It includes serial numbers and MAC addresses.

@@ -6,6 +6,8 @@
 #     model  MacPro5,1 (default) | MacPro4,1 | iMac12,2 | iMac10,1 | iMac9,1 | PC
 #     gpus   vega64 (default) | rx580 | wx4150 | m6100 | gtx680 | none | a,b list
 #   Extra knobs: GFL_MOCK_FAIL=dump|write|backup|flash  GFL_MOCK_PATCHED=1  GFL_MOCK_FAST=1
+#     GFL_MOCK_MEDIA=dvd   started from a disc: files stay in memory until "Save to USB"
+#                          (simulated drives: GFL_MOCK_DRIVES, a default one is provided)
 # Then open http://localhost:<port>/ in a browser.
 set -euo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,6 +20,13 @@ export PATH="$HERE/dev/mock/bin:$PATH"
 export GFL_MEDIUM="$HERE/dev/mock/usb"              # stands in for the USB stick
 mkdir -p "$GFL_MEDIUM/flash/video"
 rm -f "$GFL_MEDIUM"/.mock-chip.rom*                 # each session starts with a factory chip
+if [ "${GFL_MOCK_MEDIA:-usb}" = dvd ]; then
+  export GFL_NO_MEDIUM=1 GFL_MOCK_CHIP="$GFL_MEDIUM/.mock-chip.rom"
+  export GFL_RUN_DIR="$HERE/dev/mock/run" GFL_SAVE_MNT_ROOT="$HERE/dev/mock/drives"
+  export GFL_MOCK_DRIVES="${GFL_MOCK_DRIVES:-sdc1:vfat:KINGSTON:16008609792:DataTraveler 3.0,sdd1:exfat:SAMSUNG:64023257088:Samsung BAR Plus}"
+  rm -rf "$GFL_RUN_DIR" "$GFL_SAVE_MNT_ROOT"          # each session starts with nothing saved
+  unset GFL_MEDIUM
+fi
 export GFL_AMDVBFLASH="$HERE/dev/mock/bin/amdvbflash" GFL_NVFLASH="$HERE/dev/mock/bin/nvflash_linux"
 if ! command -v jq >/dev/null 2>&1; then
   mkdir -p "$HERE/dev/.cache"

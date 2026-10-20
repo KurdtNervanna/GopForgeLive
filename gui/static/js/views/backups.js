@@ -5,7 +5,7 @@ import { icon } from "../icons.js";
 import { fileArt } from "../art.js";
 import { api } from "../api.js";
 import { S, actions, update, toast, openSheet, runJob, jobRunning } from "../core.js";
-import { section, callout, jobBlock } from "../components.js";
+import { section, callout, jobBlock, saveFirstCallout } from "../components.js";
 import { macInfo } from "../macs.js";
 
 export const title = "Backups";
@@ -86,7 +86,7 @@ export function render() {
         <p>Firmware saved by GopForge Live. They live on this USB drive — copy them to your computer and keep them somewhere safe.</p></div>
       <button class="btn" data-act="backups-refresh">${icon("refresh")} Refresh</button>
     </div>
-    ${when(!onUsb, () => callout("warn", "Backups are in memory only", "The USB’s data partition isn’t writable, so these files disappear at shut-down."))}
+    ${when(!onUsb, () => saveFirstCallout("Restoring"))}
     ${jobBlock(j, { running: "Restoring…", done: "Restore finished", failed: "Restore didn’t run" })}
     ${!b ? html`<p class="muted">Loading…</p>`
       : !b.files.length ? html`<div class="empty"><div class="e-icon">${icon("archive")}</div><h2 class="t-title2">No backups yet</h2>

@@ -17,9 +17,13 @@ GFL_ROMS="${GFL_ROMS:-$GFL_ROOT/roms}"
 . "$GFL_LIB/ui.sh"
 # shellcheck source=safety.sh
 . "$GFL_LIB/safety.sh"
+# shellcheck source=storage.sh
+. "$GFL_LIB/storage.sh"
 # The USB's rw FAT mount must be found in THIS shell (not inside $(...)), and the
 # workdir must exist before the other libraries start logging into it.
-GFL_MEDIUM="${GFL_MEDIUM:-$(gfl_find_usb || true)}"
+# GFL_NO_MEDIUM=1 behaves like a DVD boot (nothing writable to boot from).
+if [ "${GFL_NO_MEDIUM:-0}" = 1 ]; then GFL_MEDIUM=""
+else GFL_MEDIUM="${GFL_MEDIUM:-$(gfl_find_usb || true)}"; fi
 GFL_WORKDIR="${GFL_WORKDIR:-$(gfl_resolve_workdir)}"
 mkdir -p "$GFL_WORKDIR" 2>/dev/null || true
 GFL_LOG="$GFL_WORKDIR/gopforge-live.log"
@@ -36,7 +40,7 @@ gfl_log_session() { # frontend
     echo "================ GopForge-Live session $(date 2>/dev/null) — ${1:-?} ================"
     echo "version : $GFL_VERSION"
     echo "cmdline : $(cat /proc/cmdline 2>/dev/null)"
-    echo "medium  : ${GFL_MEDIUM:-<none>}   workdir: $GFL_WORKDIR"
+    echo "medium  : ${GFL_MEDIUM:-<none>}   workdir: $GFL_WORKDIR ($(gfl_storage_kind))"
     echo
     detect_report
     echo

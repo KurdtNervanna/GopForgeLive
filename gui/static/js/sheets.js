@@ -3,7 +3,8 @@ import { html, raw, when } from "./dom.js";
 import { icon, sq, spinner } from "./icons.js";
 import { appIcon, cautionArt } from "./art.js";
 import { api } from "./api.js";
-import { S, actions, update, openSheet, closeSheet, closeMenu, toast, refreshStatus, setTheme, setSize, jobRunning } from "./core.js";
+import { S, actions, update, openSheet, closeSheet, closeMenu, toast, refreshStatus, setTheme, setSize, jobRunning, runJob } from "./core.js";
+import { section, callout, jobBlock } from "./components.js";
 
 const ARM_MS = 3000;
 
@@ -123,6 +124,48 @@ function hardwareSheet() {
   </div>`;
 }
 
+// Save to USB: for sessions started from a disc, whose backups are only in memory.
+function storageSheet(sh) {
+  const st = S.status?.storage || {};
+  const info = sh.info; const j = S.job?.owner === "storage" ? S.job : null;
+  const busy = j?.state === "running";
+  const gb = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(b >= 1e10 ? 0 : 1)} GB` : `${Math.round(b / 1e6)} MB`);
+  const FS = { vfat: "FAT32", exfat: "exFAT", ntfs: "NTFS", ntfs3: "NTFS", ext2: "Linux ext2", ext3: "Linux ext3", ext4: "Linux ext4", hfsplus: "Mac OS Extended" };
+  const done = html`<div class="btn-row"><button class="btn primary" data-act="close-sheet" ${busy ? "disabled" : ""}>Done</button></div>`;
+  if (st.kind === "drive") return html`<div class="sheet" role="dialog" aria-modal="true">
+    <div style="margin-bottom:12px">${sq("usb", "green", "xl")}</div>
+    <div class="s-title">Saving to “${st.drive?.label || st.drive?.dev}”</div>
+    <div class="s-body">Backups, reports and the log go straight to <span class="mono">${st.drive?.dev}</span> › gopforge-live.
+      Eject it before unplugging it. After that, new files stay in memory until you save again.</div>
+    <div class="btn-row"><button class="btn" data-act="storage-eject" ${busy ? "disabled" : ""}>Eject</button><button class="btn primary" data-act="close-sheet">Done</button></div>
+  </div>`;
+  const targets = info?.targets || [];
+  return html`<div class="sheet wide" role="dialog" aria-modal="true">
+    <div style="margin-bottom:12px">${sq("usb", "blue", "xl")}</div>
+    <div class="s-title">Save to a USB drive</div>
+    <div class="s-body">This session started from a disc, which can’t be written to, so ${st.unsaved
+      ? html`<strong>${st.unsaved} file${st.unsaved === 1 ? "" : "s"}</strong> (backups, reports) and the log are`
+      : "the log and anything you back up are"} only in memory. Plug in a USB drive formatted FAT32 (MS-DOS) or exFAT and choose it below.
+      Everything is copied into a <span class="mono">gopforge-live</span> folder and checked, and from then on new files go straight to the drive.</div>
+    ${section("USB drives", !info ? html`<div class="group"><div class="row"><span class="muted">${spinner()} Looking for drives…</span></div></div>`
+      : !targets.length ? callout("info", "No USB drive found", "Plug one in, wait a few seconds, then click Refresh. Drives without a FAT32, exFAT, NTFS or Linux file system aren’t listed.")
+      : html`<div class="group icons">${targets.map((t) => html`<div class="row tall">
+          ${sq("usb", "blue", "lg")}
+          <div class="main-col"><div class="title">${t.label || t.model || t.name}</div>
+            <div class="subtitle">${[t.model && t.label ? t.model : "", gb(t.size), FS[t.fstype] || t.fstype, t.dev].filter(Boolean).join(" · ")}${t.fstype === "hfsplus" ? " · journaled Mac drives can’t be written from here" : ""}</div></div>
+          <button class="btn primary" data-act="storage-save" data-dev="${t.dev}" ${busy ? "disabled" : ""}>Save Here</button></div>`)}</div>`)}
+    ${jobBlock(j, { running: "Copying and checking…", done: "Saved", failed: "Not saved" })}
+    <div class="btn-row"><button class="btn" data-act="storage-refresh" ${busy ? "disabled" : ""}>${icon("refresh")} Refresh</button>
+      <span class="grow"></span><button class="btn" data-act="close-sheet" ${busy ? "disabled" : ""}>Not Now</button></div>
+  </div>`;
+}
+
+async function loadStorage() {
+  const r = await api.get("/api/storage");
+  if (r.ok && S.status) S.status.storage = r.storage;
+  if (S.sheet?.kind === "storage") { S.sheet.info = r.ok ? r : { targets: [] }; update(); }
+}
+
 function alertSheet(sh) {
   return html`<div class="sheet" role="alertdialog" aria-modal="true">
     <div style="margin-bottom:12px">${sq(sh.icon || "power", sh.color || "gray", "xl")}</div>
@@ -138,7 +181,7 @@ function alertSheet(sh) {
 export function renderSheet() {
   const sh = S.sheet;
   if (!sh) return "";
-  const body = { confirm: confirmSheet, expert: expertSheet, settings: settingsSheet, hardware: hardwareSheet, alert: alertSheet }[sh.kind]?.(sh) || "";
+  const body = { confirm: confirmSheet, expert: expertSheet, settings: settingsSheet, hardware: hardwareSheet, storage: storageSheet, alert: alertSheet }[sh.kind]?.(sh) || "";
   return html`<div class="scrim" data-act="scrim">${body}</div>`;
 }
 
@@ -207,22 +250,46 @@ setInterval(() => {
 // ------------------------------------------------------------------ actions --
 async function systemDo(what) {
   closeMenu();
+  const st = S.status?.storage || {};
+  const saved = st.kind === "drive" ? `Your files are on “${st.drive?.label || st.drive?.dev}”.` : "Your backups are already saved on the USB.";
   const labels = {
-    poweroff: ["Shut down now?", "Your backups are already saved on the USB.", "Shut Down", "power", "red"],
+    poweroff: ["Shut down now?", saved, "Shut Down", "power", "red"],
     reboot: ["Restart now?", "Hold ⌥ Option while it starts to choose a startup disk.", "Restart", "restart", "blue"],
     textmode: ["Switch to text mode?", "The graphical app closes and the keyboard-driven wizard starts in its place.", "Switch", "terminal", "graphite"],
   }[what];
   if (!labels) return;
   if (jobRunning()) { toast("warn", "Please wait", "An operation is still running."); return; }
+  await refreshStatus();
+  const lost = what !== "textmode" && S.status?.storage?.kind === "ram" && S.status.storage.unsaved > 0 ? S.status.storage.unsaved : 0;
+  if (lost) return openSheet({
+    kind: "alert", tone: "danger", icon: "alert", color: "orange",
+    title: `${lost} file${lost === 1 ? " is" : "s are"} only in memory`,
+    body: html`Your backups haven’t been saved to a USB drive yet and will be lost when the Mac ${what === "reboot" ? "restarts" : "shuts down"}.
+      <div style="margin-top:12px"><button class="btn primary" data-act="sheet" data-sheet="storage">${icon("usb")} Save to USB…</button></div>`,
+    action: what === "reboot" ? "Restart Anyway" : "Shut Down Anyway",
+    run: () => doSystem(what, labels),
+  });
   openSheet({
     kind: "alert", title: labels[0], body: labels[1], action: labels[2], icon: labels[3], color: labels[4],
-    run: async () => {
-      const r = await api.post("/api/system", { action: what });
-      if (!r.ok) return toast("bad", "Couldn’t do that", r.error);
-      if (r.mock) return toast("info", "Demo mode", `On a real Mac this would ${labels[2].toLowerCase()}.`);
-      if (what !== "textmode") update({ powering: what === "reboot" ? "Restarting…" : "Shutting down…" });
-    },
+    run: () => doSystem(what, labels),
   });
+}
+
+async function doSystem(what, labels) {
+  const r = await api.post("/api/system", { action: what });
+  if (!r.ok) return toast("bad", "Couldn’t do that", r.error);
+  if (r.mock) return toast("info", "Demo mode", `On a real Mac this would ${labels[2].toLowerCase()}.`);
+  if (what !== "textmode") update({ powering: what === "reboot" ? "Restarting…" : "Shutting down…" });
+}
+
+async function storageDone(job, title) {
+  await refreshStatus();
+  if (job?.state === "done") {
+    const r = job.result || {};
+    toast("ok", title, r.copied != null ? `${r.copied} copied${r.skipped ? `, ${r.skipped} already there` : ""}. New files now go straight to the drive.` : "");
+    closeSheet();
+  } else if (job) toast("bad", "Not saved", job.result?.error || "See the details.", 12000);
+  update();
 }
 
 Object.assign(actions, {
@@ -231,6 +298,7 @@ Object.assign(actions, {
   sheet: async (el) => {
     const kind = el.dataset.sheet;
     openSheet({ kind });
+    if (kind === "storage") await loadStorage();
     if (kind === "hardware") {
       S.hardware = null;
       const h = await api.get("/api/hardware");
@@ -254,6 +322,17 @@ Object.assign(actions, {
     await api.post("/api/expert", { enable: false });
     closeSheet(); await refreshStatus();
     toast("info", "Expert Mode is off");
+  },
+  "storage-refresh": () => { if (S.sheet) { S.sheet.info = null; update(); loadStorage(); } },
+  "storage-save": async (el) => {
+    const job = await runJob("save-usb", { dev: el.dataset.dev }, { owner: "storage", title: "Saving to the USB drive…" });
+    await storageDone(job, "Saved to the USB drive");
+  },
+  "storage-eject": async () => {
+    const job = await runJob("eject-usb", {}, { owner: "storage", title: "Ejecting…" });
+    await refreshStatus();
+    if (job?.state === "done") { toast("ok", "Ejected", "You can unplug the drive. New files stay in memory until you save again."); closeSheet(); }
+    else if (job) toast("bad", "Couldn’t eject", job.result?.error || "");
   },
   theme: (el) => setTheme(el.dataset.v),
   size: (el) => setSize(el.dataset.v),
