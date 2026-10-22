@@ -96,8 +96,10 @@ a tag with the same version:
 git tag v0.5.0-beta && git push origin v0.5.0-beta
 ```
 
-The workflow builds and audits the three files and publishes them. Versions with a
-suffix (`-beta`) become pre-releases. To try the build without publishing, run the
+The workflow builds and audits the three files and publishes them as the **Latest**
+release, which is what the repository's front page shows under *Releases* (GitHub
+doesn't feature pre-releases there). `-alpha`, `-rc` and `-dev` versions become
+pre-releases instead. To try the build without publishing, run the
 workflow by hand from the Actions tab: the files are kept as a workflow artifact for
 7 days, and ticking **draft** also opens a draft release.
 

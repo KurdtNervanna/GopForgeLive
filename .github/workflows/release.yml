@@ -1,8 +1,10 @@
 # Builds the USB image, the DVD .iso and the DVD .dmg with tools/build-release.sh.
 #
 #   * Push a tag vX.Y.Z… that matches GFL_VERSION in bin/lib/bootstrap.sh → the assets
-#     are built, audited and published as a GitHub release (a pre-release when the
-#     version has a suffix such as -beta). An existing release gets its assets replaced.
+#     are built, audited and published as the Latest GitHub release, so it shows on the
+#     repository's front page (GitHub only features full releases there; -beta versions
+#     count as full releases, -alpha/-rc/-dev ones become pre-releases). An existing
+#     release gets its assets replaced.
 #   * Run it by hand (Actions › Release images › Run workflow) → the assets are built
 #     and kept as a workflow artifact for 7 days; tick "draft" to also open a draft
 #     release for them.
@@ -40,7 +42,10 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "v$v" ]; then
             echo "::error::tag ${GITHUB_REF_NAME} doesn't match GFL_VERSION $v (bin/lib/bootstrap.sh)"; exit 1
           fi
-          case "$v" in *-*) echo "pre=--prerelease" >> "$GITHUB_OUTPUT";; *) echo "pre=" >> "$GITHUB_OUTPUT";; esac
+          case "$v" in
+            *-alpha*|*-rc*|*-dev*) echo "kind=--prerelease" >> "$GITHUB_OUTPUT" ;;
+            *)                     echo "kind=--latest" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Make room
         run: |
@@ -71,7 +76,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.v.outputs.version }}
-          PRE: ${{ steps.v.outputs.pre }}
+          KIND: ${{ steps.v.outputs.kind }}
         run: |
           tag="v$V"
           files=(dist/*.img.xz dist/*.iso dist/*.dmg dist/SHA256SUMS.txt)
@@ -81,5 +86,5 @@ jobs:
             draft=""; [ "${GITHUB_REF_TYPE}" = tag ] || draft="--draft --target ${GITHUB_SHA}"
             # shellcheck disable=SC2086
             gh release create "$tag" "${files[@]}" --title "GopForge-Live $V" \
-              --notes-file dist/RELEASE-NOTES.md $PRE $draft
+              --notes-file dist/RELEASE-NOTES.md $KIND $draft
           fi
